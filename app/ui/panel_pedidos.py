@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from app.config import *
 from app.database import consultas
 from app.logic import calculos, reglas_experto
+from app.ui.widgets import AutocompleteEntry
 
 
 class PanelPedidos(ctk.CTkFrame):
@@ -22,7 +23,7 @@ class PanelPedidos(ctk.CTkFrame):
         # Título
         self.titulo = ctk.CTkLabel(
             self,
-            text="📋 Gestión de Pedidos",
+            text="Gestión de Pedidos",
             font=ctk.CTkFont(size=32, weight="bold")
         )
         self.titulo.grid(row=0, column=0, pady=(0, 20), sticky="w")
@@ -44,20 +45,17 @@ class PanelPedidos(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_cliente,
-            text="👤 Datos del Cliente",
+            text="Datos del Cliente",
             font=ctk.CTkFont(size=18, weight="bold")
         ).grid(row=0, column=0, columnspan=2, pady=10, sticky="w", padx=15)
 
-        # Selector de cliente existente
+        # Selector de cliente con autocompletado
         ctk.CTkLabel(frame_cliente, text="Cliente:").grid(row=1, column=0, padx=15, pady=5, sticky="w")
-        self.combo_cliente = ctk.CTkComboBox(
+        self.autocomplete_cliente = AutocompleteEntry(
             frame_cliente,
-            values=self._obtener_nombres_clientes(),
-            width=300,
-            state="readonly"
+            width=300
         )
-        self.combo_cliente.grid(row=1, column=1, padx=15, pady=5, sticky="w")
-        self.combo_cliente.set("Seleccionar cliente...")
+        self.autocomplete_cliente.grid(row=1, column=1, padx=15, pady=5, sticky="w")
 
         # Botón nuevo cliente
         self.btn_nuevo_cliente = ctk.CTkButton(
@@ -76,7 +74,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_servicio,
-            text="🖨️ Detalles del Servicio",
+            text="Detalles del Servicio",
             font=ctk.CTkFont(size=18, weight="bold")
         ).grid(row=0, column=0, columnspan=3, pady=10, sticky="w", padx=15)
 
@@ -111,7 +109,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_dimensiones,
-            text="📏 Dimensiones y Cantidad",
+            text="Dimensiones y Cantidad",
             font=ctk.CTkFont(size=18, weight="bold")
         ).grid(row=0, column=0, columnspan=4, pady=10, sticky="w", padx=15)
 
@@ -149,7 +147,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self.frame_recomendaciones,
-            text="🧠 Recomendaciones del Sistema Experto",
+            text="Recomendaciones del Sistema Experto",
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color="white"
         ).grid(row=0, column=0, pady=10, sticky="w", padx=15)
@@ -169,7 +167,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_costos,
-            text="💰 Cotización",
+            text="Cotización",
             font=ctk.CTkFont(size=18, weight="bold")
         ).grid(row=0, column=0, columnspan=2, pady=10, sticky="w", padx=15)
 
@@ -204,7 +202,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         self.btn_calcular = ctk.CTkButton(
             frame_botones,
-            text="🧮 Calcular Cotización",
+            text="Calcular Cotización",
             command=self._calcular_cotizacion,
             height=50,
             font=ctk.CTkFont(size=16, weight="bold"),
@@ -215,7 +213,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         self.btn_guardar = ctk.CTkButton(
             frame_botones,
-            text="💾 Guardar Pedido",
+            text="Guardar Pedido",
             command=self._guardar_pedido,
             height=50,
             font=ctk.CTkFont(size=16, weight="bold"),
@@ -226,7 +224,7 @@ class PanelPedidos(ctk.CTkFrame):
 
         self.btn_limpiar = ctk.CTkButton(
             frame_botones,
-            text="🗑️ Limpiar",
+            text="Limpiar",
             command=self._limpiar_formulario,
             height=50,
             font=ctk.CTkFont(size=16),
@@ -259,16 +257,42 @@ class PanelPedidos(ctk.CTkFrame):
         nombre = dialogo.get_input()
 
         if nombre:
-            consultas.guardar_cliente(nombre)
+            id_cliente = consultas.guardar_cliente(nombre)
             messagebox.showinfo("Éxito", f"Cliente '{nombre}' registrado correctamente")
-            # Actualizar combo
-            self.combo_cliente.configure(values=self._obtener_nombres_clientes())
-            self.combo_cliente.set(nombre)
+            # Actualizar el entry con el nuevo cliente
+            self.autocomplete_cliente.entry.delete(0, "end")
+            self.autocomplete_cliente.entry.insert(0, nombre)
+            # Cargar el cliente recién creado
+            cliente = consultas.obtener_cliente_por_id(id_cliente)
+            self.autocomplete_cliente.cliente_seleccionado = cliente
 
     def _al_seleccionar_servicio(self, choice):
         """Se ejecuta al seleccionar un servicio"""
-        # Aquí podrías cargar datos específicos del servicio
-        pass
+        if choice == "Seleccionar servicio...":
+            return
+
+        # Obtener ID del servicio seleccionado
+        servicios = consultas.obtener_servicios()
+        id_servicio = None
+        for servicio in servicios:
+            if servicio['nombre_servicio'] == choice:
+                id_servicio = servicio['id_servicio']
+                break
+
+        if id_servicio:
+            # Filtrar materiales compatibles con este servicio
+            materiales_filtrados = consultas.obtener_materiales_por_servicio(id_servicio)
+
+            if materiales_filtrados:
+                nombres_materiales = [mat['nombre_material'] for mat in materiales_filtrados]
+                self.combo_material.configure(values=nombres_materiales)
+                if nombres_materiales:
+                    self.combo_material.set(nombres_materiales[0])
+            else:
+                # Si no hay materiales específicos, mostrar todos
+                self.combo_material.configure(values=self._obtener_nombres_materiales())
+                messagebox.showinfo("Información",
+                    f"No hay materiales específicos configurados para {choice}.\nSe muestran todos los materiales disponibles.")
 
     def _al_cambiar_dimensiones(self, event=None):
         """Se ejecuta al escribir en los campos de dimensiones"""
@@ -300,31 +324,53 @@ class PanelPedidos(ctk.CTkFrame):
 
             # Obtener análisis del sistema experto
             servicio_nombre = self.combo_servicio.get()
+            cantidad = int(self.entry_cantidad.get() or 1)
+
             analisis = reglas_experto.analizar_pedido_completo(
                 tipo_trabajo=servicio_nombre,
                 ancho=ancho,
                 alto=alto,
+                cantidad=cantidad,
                 material_disponible=True,
-                requiere_diseño=False
+                requiere_diseño=False,
+                es_urgente=False
             )
 
             # Mostrar recomendaciones
             texto_recomendaciones = f"""
-🔧 Máquina: {analisis['maquina']['maquina_recomendada']}
+Máquina: {analisis['maquina']['maquina_recomendada']}
    {analisis['maquina']['explicacion']}
 
-📦 Materiales recomendados:
+Materiales recomendados:
 """
             for mat in analisis['material']['materiales_recomendados']:
-                texto_recomendaciones += f"   • {mat['nombre']}: {mat['razon']}\n"
+                texto_recomendaciones += f"   - {mat['nombre']}: {mat['razon']}\n"
 
-            texto_recomendaciones += f"\n⏱️ Tiempo estimado: {analisis['tiempo']['horas_estimadas']} horas"
-            texto_recomendaciones += f"\n📅 Entrega: {analisis['tiempo']['fecha_entrega'].strftime('%d/%m/%Y %H:%M')}"
+            # Información de tiempo y cola
+            texto_recomendaciones += f"\n--- TIEMPO DE ENTREGA ---"
+            texto_recomendaciones += f"\nTiempo de producción: {analisis['tiempo']['horas_estimadas']:.1f} horas"
+            texto_recomendaciones += f"\nDías hábiles: {analisis['tiempo']['dias_habiles']}"
+            texto_recomendaciones += f"\nFecha de entrega: {analisis['tiempo']['fecha_entrega'].strftime('%d/%m/%Y a las %H:%M')}"
 
+            # Estado de la cola
+            info_cola = analisis['tiempo']['info_cola']
+            texto_recomendaciones += f"\n\n--- ESTADO DE PRODUCCIÓN ---"
+            texto_recomendaciones += f"\nPedidos pendientes: {info_cola['pedidos_pendientes']}"
+            texto_recomendaciones += f"\nHoras en cola: {info_cola['horas_en_cola']:.1f}h"
+            texto_recomendaciones += f"\nEstado: {info_cola['estado_produccion']}"
+
+            # Detalles del cálculo
+            texto_recomendaciones += f"\n\n{analisis['tiempo']['detalles_calculo']}"
+
+            # Advertencias
             if analisis['validacion_metraje']['advertencias']:
-                texto_recomendaciones += "\n\n⚠️ Advertencias:"
+                texto_recomendaciones += "\n\n--- ADVERTENCIAS ---"
                 for adv in analisis['validacion_metraje']['advertencias']:
-                    texto_recomendaciones += f"\n   {adv}"
+                    texto_recomendaciones += f"\n{adv}"
+
+            if analisis['tiempo']['alertas']:
+                for alerta in analisis['tiempo']['alertas']:
+                    texto_recomendaciones += f"\n{alerta}"
 
             self.label_recomendaciones.configure(text=texto_recomendaciones)
 
@@ -344,8 +390,9 @@ class PanelPedidos(ctk.CTkFrame):
         """Guarda el pedido en la base de datos"""
         try:
             # Validaciones
-            if self.combo_cliente.get() == "Seleccionar cliente...":
-                messagebox.showwarning("Validación", "Debe seleccionar un cliente")
+            cliente = self.autocomplete_cliente.get_cliente_seleccionado()
+            if not cliente:
+                messagebox.showwarning("Validación", "Debe seleccionar un cliente de las sugerencias")
                 return
 
             if self.combo_servicio.get() == "Seleccionar servicio...":
@@ -358,15 +405,6 @@ class PanelPedidos(ctk.CTkFrame):
 
             if precio_total == 0:
                 messagebox.showwarning("Validación", "Debe calcular la cotización primero")
-                return
-
-            # Obtener cliente (asumimos que el nombre es único)
-            clientes = consultas.obtener_clientes()
-            cliente_nombre = self.combo_cliente.get()
-            cliente = next((c for c in clientes if c['nombre_completo'] == cliente_nombre), None)
-
-            if not cliente:
-                messagebox.showerror("Error", "Cliente no encontrado")
                 return
 
             # Obtener adelanto
@@ -394,7 +432,7 @@ class PanelPedidos(ctk.CTkFrame):
 
     def _limpiar_formulario(self):
         """Limpia todos los campos del formulario"""
-        self.combo_cliente.set("Seleccionar cliente...")
+        self.autocomplete_cliente.clear()
         self.combo_servicio.set("Seleccionar servicio...")
         self.entry_descripcion.delete(0, "end")
         self.entry_ancho.delete(0, "end")

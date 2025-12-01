@@ -62,7 +62,28 @@ class DatabaseConnection:
             )
         """)
 
-        # 4. Tabla de MATERIALES (INVENTARIO)
+        # 3.1 Tabla de SERVICIOS_MATERIALES (Relación muchos a muchos)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS servicios_materiales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_servicio INTEGER NOT NULL,
+                id_material INTEGER NOT NULL,
+                FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio),
+                FOREIGN KEY (id_material) REFERENCES materiales(id_material),
+                UNIQUE(id_servicio, id_material)
+            )
+        """)
+
+        # 4. Tabla de ESTADOS_PEDIDOS
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS estados_pedidos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL DEFAULT '#808080'
+            )
+        """)
+
+        # 5. Tabla de MATERIALES (INVENTARIO)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS materiales (
                 id_material INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,23 +95,24 @@ class DatabaseConnection:
             )
         """)
 
-        # 5. Tabla de PEDIDOS (CABECERA)
+        # 6. Tabla de PEDIDOS (CABECERA)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS pedidos (
                 id_pedido INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_cliente INTEGER NOT NULL,
                 fecha_ingreso DATETIME DEFAULT CURRENT_TIMESTAMP,
                 fecha_entrega_estimada DATETIME,
-                estado_pedido TEXT DEFAULT 'Cotizado',
+                id_estado INTEGER DEFAULT 1,
                 estado_pago TEXT DEFAULT 'Pendiente',
                 costo_total REAL DEFAULT 0,
                 acuenta REAL DEFAULT 0,
                 observaciones TEXT,
-                FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+                FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+                FOREIGN KEY (id_estado) REFERENCES estados_pedidos(id)
             )
         """)
 
-        # 6. Tabla de DETALLE_PEDIDO
+        # 7. Tabla de DETALLE_PEDIDO
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detalles_pedido (
                 id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +130,7 @@ class DatabaseConnection:
             )
         """)
 
-        # 7. Tabla de CONSUMO_MATERIALES (Historial)
+        # 8. Tabla de CONSUMO_MATERIALES (Historial)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS consumo_materiales (
                 id_consumo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,6 +149,22 @@ class DatabaseConnection:
     def _cargar_datos_iniciales(self):
         """Carga datos de ejemplo si las tablas están vacías"""
         cursor = self._connection.cursor()
+
+        # Verificar si ya hay estados de pedidos
+        cursor.execute("SELECT COUNT(*) FROM estados_pedidos")
+        if cursor.fetchone()[0] == 0:
+            # Insertar estados de pedidos con colores
+            estados = [
+                ("Cotizado", "#9E9E9E"),           # Gris
+                ("Confirmado", "#2196F3"),         # Azul
+                ("En Diseño", "#FF9800"),          # Naranja
+                ("Previsualización Enviada", "#9C27B0"),  # Púrpura
+                ("En Preparación", "#FFC107"),     # Amarillo
+                ("Listo para Entrega", "#4CAF50"), # Verde
+                ("Entregado", "#00C853"),          # Verde Brillante
+                ("Cancelado", "#F44336")           # Rojo
+            ]
+            cursor.executemany("INSERT INTO estados_pedidos (nombre, color) VALUES (?, ?)", estados)
 
         # Verificar si ya hay máquinas
         cursor.execute("SELECT COUNT(*) FROM maquinas")
@@ -162,16 +200,58 @@ class DatabaseConnection:
         if cursor.fetchone()[0] == 0:
             # Insertar materiales de ejemplo
             materiales = [
-                ("Lona 13oz", 50.0, "metros", 10.0, 8.5),
-                ("Vinil Adhesivo", 30.0, "metros", 5.0, 6.0),
+                # Materiales para gigantografía
+                ("Lona 13 onz", 50.0, "metros", 10.0, 8.5),
+                ("Lona 8 onz", 40.0, "metros", 10.0, 6.0),
+                ("Vinil con Laminado Mate", 30.0, "metros", 5.0, 12.0),
+                ("Vinil con Laminado Brillo", 30.0, "metros", 5.0, 12.5),
+                ("Vinil sin Laminado", 35.0, "metros", 5.0, 8.0),
+                # Materiales para formatos
                 ("Papel Couché 300g", 500, "hojas", 50, 0.5),
                 ("Papel Bond 75g", 1000, "hojas", 100, 0.2),
+                ("Papel Fotográfico", 200, "hojas", 30, 1.5),
+                # Materiales para merchandising
+                ("Vinil Adhesivo", 30.0, "metros", 5.0, 6.0),
+                ("Vinil Textil", 20.0, "metros", 3.0, 10.0),
+                # Consumibles
                 ("Tinta Negra", 5, "cartuchos", 1, 45.0),
-                ("Tinta Color", 5, "cartuchos", 1, 55.0)
+                ("Tinta Color", 5, "cartuchos", 1, 55.0),
+                ("Laminado Mate", 25.0, "metros", 5.0, 7.0),
+                ("Laminado Brillo", 25.0, "metros", 5.0, 7.5)
             ]
             cursor.executemany(
                 "INSERT INTO materiales (nombre_material, cantidad_stock, unidad_medida, stock_minimo, precio_por_unidad) VALUES (?, ?, ?, ?, ?)",
                 materiales
+            )
+
+        # Verificar si ya hay relaciones servicios-materiales
+        cursor.execute("SELECT COUNT(*) FROM servicios_materiales")
+        if cursor.fetchone()[0] == 0:
+            # Insertar relaciones de servicios con materiales compatibles
+            # Formato: (id_servicio, id_material)
+            relaciones = [
+                # Gigantografía (id_servicio=1) - puede usar lonas y viniles
+                (1, 1),  # Lona 13 onz
+                (1, 2),  # Lona 8 onz
+                (1, 3),  # Vinil con Laminado Mate
+                (1, 4),  # Vinil con Laminado Brillo
+                (1, 5),  # Vinil sin Laminado
+                # Banner Roll-Up (id_servicio=2) - usa lona principalmente
+                (2, 1),  # Lona 13 onz
+                (2, 2),  # Lona 8 onz
+                # Tarjetas de Presentación (id_servicio=3) - papel couché
+                (3, 6),  # Papel Couché 300g
+                # Flyers A5 (id_servicio=4) - papel bond o couché
+                (4, 6),  # Papel Couché 300g
+                (4, 7),  # Papel Bond 75g
+                # Tazas Personalizadas (id_servicio=5) - vinil textil
+                (5, 10), # Vinil Textil
+                # Llaveros (id_servicio=6) - vinil adhesivo
+                (6, 9),  # Vinil Adhesivo
+            ]
+            cursor.executemany(
+                "INSERT INTO servicios_materiales (id_servicio, id_material) VALUES (?, ?)",
+                relaciones
             )
 
         self._connection.commit()

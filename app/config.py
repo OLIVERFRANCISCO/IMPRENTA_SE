@@ -47,20 +47,20 @@ TIEMPO_DISEÑO = 4
 STOCK_MINIMO_PORCENTAJE = 20
 STOCK_CRITICO_PORCENTAJE = 10
 
-# Estados de pedidos
-ESTADOS_PEDIDO = [
-    "Cotizado",
-    "Confirmado",
-    "En Diseño",
-    "Previsualización Enviada",
-    "En Preparación",
-    "Listo para Entrega",
-    "Entregado"
-]
-
+# Estados de pago
 ESTADOS_PAGO = [
     "Pendiente",
     "A cuenta",
+    "Cancelado"
+]
+
+# Estados de pedido
+ESTADOS_PEDIDO = [
+    "Pendiente",
+    "En Proceso",
+    "En producción",
+    "Listo",
+    "Entregado",
     "Cancelado"
 ]
 

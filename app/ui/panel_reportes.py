@@ -1,16 +1,18 @@
 """
 Panel de reportes y estadísticas
-Muestra información resumida del sistema
+Muestra dashboard con información general del sistema
 """
 import customtkinter as ctk
+from tkinter import messagebox, filedialog
 from app.config import (
     COLOR_PRIMARY,
     COLOR_SUCCESS,
-    COLOR_DANGER,
     COLOR_WARNING,
+    COLOR_DANGER,
     ESTADOS_PEDIDO
 )
 from app.database import consultas
+from app.logic.exportacion import exportar_a_csv, exportar_a_excel, exportar_a_pdf
 
 
 class PanelReportes(ctk.CTkFrame):
@@ -25,7 +27,7 @@ class PanelReportes(ctk.CTkFrame):
         # Título
         self.titulo = ctk.CTkLabel(
             self,
-            text="📊 Reportes y Estadísticas",
+            text="Reportes y Estadísticas",
             font=ctk.CTkFont(size=32, weight="bold")
         )
         self.titulo.grid(row=0, column=0, pady=(0, 20), sticky="w")
@@ -45,7 +47,15 @@ class PanelReportes(ctk.CTkFrame):
         materiales = consultas.obtener_materiales()
         materiales_bajo_stock = consultas.obtener_materiales_bajo_stock()
         pedidos = consultas.obtener_pedidos()
-        pedidos_activos = [p for p in pedidos if p['estado_pedido'] not in ['Entregado', 'Cancelado']]
+
+        # Función auxiliar para acceder de forma segura a sqlite3.Row
+        def get_field(row, field, default=None):
+            try:
+                return row[field] if row[field] is not None else default
+            except (KeyError, IndexError):
+                return default
+
+        pedidos_activos = [p for p in pedidos if get_field(p, 'estado_nombre') not in ['Entregado', 'Cancelado']]
 
         # Tarjetas de resumen
         row = 0
@@ -53,7 +63,7 @@ class PanelReportes(ctk.CTkFrame):
         # Tarjeta 1: Total de Clientes
         self._crear_tarjeta(
             self.scroll_frame,
-            "👥 Total de Clientes",
+            "Total de Clientes",
             str(len(clientes)),
             COLOR_PRIMARY,
             row, 0
@@ -62,7 +72,7 @@ class PanelReportes(ctk.CTkFrame):
         # Tarjeta 2: Pedidos Activos
         self._crear_tarjeta(
             self.scroll_frame,
-            "📋 Pedidos Activos",
+            "Pedidos Activos",
             str(len(pedidos_activos)),
             COLOR_SUCCESS,
             row, 1
@@ -72,7 +82,7 @@ class PanelReportes(ctk.CTkFrame):
         color_alerta = COLOR_DANGER if materiales_bajo_stock else COLOR_SUCCESS
         self._crear_tarjeta(
             self.scroll_frame,
-            "⚠️ Alertas de Stock",
+            "Alertas de Stock",
             str(len(materiales_bajo_stock)),
             color_alerta,
             row, 2
@@ -86,16 +96,18 @@ class PanelReportes(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_pedidos_estado,
-            text="📊 Pedidos por Estado",
+            text="Pedidos por Estado",
             font=ctk.CTkFont(size=20, weight="bold")
         ).pack(pady=15, padx=15, anchor="w")
 
         # Contar pedidos por estado
         estados_count = {}
-        for estado in ESTADOS_PEDIDO:
-            count = len([p for p in pedidos if p['estado_pedido'] == estado])
+        estados_disponibles = consultas.obtener_estados_pedidos()
+        for estado_obj in estados_disponibles:
+            estado_nombre = estado_obj['nombre']
+            count = len([p for p in pedidos if get_field(p, 'estado_nombre') == estado_nombre])
             if count > 0:
-                estados_count[estado] = count
+                estados_count[estado_nombre] = count
 
         if estados_count:
             for estado, count in estados_count.items():
@@ -131,7 +143,7 @@ class PanelReportes(ctk.CTkFrame):
 
         ctk.CTkLabel(
             frame_materiales,
-            text="📦 Estado del Inventario",
+            text="Estado del Inventario",
             font=ctk.CTkFont(size=20, weight="bold")
         ).pack(pady=15, padx=15, anchor="w")
 
@@ -171,7 +183,7 @@ class PanelReportes(ctk.CTkFrame):
 
         ctk.CTkButton(
             frame_acciones,
-            text="🔄 Actualizar Datos",
+            text="Actualizar Datos",
             command=self._actualizar_dashboard,
             height=40,
             font=ctk.CTkFont(size=14),
@@ -181,13 +193,12 @@ class PanelReportes(ctk.CTkFrame):
 
         ctk.CTkButton(
             frame_acciones,
-            text="📄 Exportar Reporte (Próximamente)",
-            command=lambda: None,
+            text="Exportar Reporte",
+            command=self._exportar_reporte,
             height=40,
             font=ctk.CTkFont(size=14),
-            fg_color="gray",
-            width=280,
-            state="disabled"
+            fg_color=COLOR_SUCCESS,
+            width=200
         ).pack(side="left", padx=10)
 
     def _crear_tarjeta(self, parent, titulo, valor, color, row, col):
@@ -210,11 +221,183 @@ class PanelReportes(ctk.CTkFrame):
         ).pack(pady=(5, 20))
 
     def _actualizar_dashboard(self):
-        """Recarga los datos del dashboard"""
-        # Limpiar frame
+        """Actualiza todos los datos del dashboard"""
         for widget in self.scroll_frame.winfo_children():
             widget.destroy()
-
-        # Recrear dashboard
         self._crear_dashboard()
 
+    def _exportar_reporte(self):
+        """Muestra diálogo para exportar el reporte"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Exportar Reporte")
+        dialogo.geometry("500x400")
+        dialogo.transient(self)
+        dialogo.grab_set()
+
+        # Centrar ventana
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (400 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+
+        ctk.CTkLabel(
+            dialogo,
+            text="Exportar Reporte del Sistema",
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(pady=20)
+
+        ctk.CTkLabel(
+            dialogo,
+            text="Seleccione el formato de exportación:",
+            font=ctk.CTkFont(size=14)
+        ).pack(pady=10)
+
+        # Variable para formato
+        formato_var = ctk.StringVar(value="excel")
+
+        # Radio buttons para formato
+        frame_formato = ctk.CTkFrame(dialogo)
+        frame_formato.pack(pady=10)
+
+        ctk.CTkRadioButton(
+            frame_formato,
+            text="Excel (.xlsx) - Recomendado",
+            variable=formato_var,
+            value="excel"
+        ).pack(pady=5, anchor="w", padx=20)
+
+        ctk.CTkRadioButton(
+            frame_formato,
+            text="PDF (.pdf)",
+            variable=formato_var,
+            value="pdf"
+        ).pack(pady=5, anchor="w", padx=20)
+
+        ctk.CTkRadioButton(
+            frame_formato,
+            text="CSV (.csv)",
+            variable=formato_var,
+            value="csv"
+        ).pack(pady=5, anchor="w", padx=20)
+
+        # Botón para seleccionar directorio
+        ctk.CTkLabel(
+            dialogo,
+            text="Seleccione dónde guardar el archivo:",
+            font=ctk.CTkFont(size=14)
+        ).pack(pady=(20, 10))
+
+        frame_directorio = ctk.CTkFrame(dialogo)
+        frame_directorio.pack(pady=10, padx=20, fill="x")
+
+        directorio_var = ctk.StringVar(value="")
+
+        entry_directorio = ctk.CTkEntry(
+            frame_directorio,
+            textvariable=directorio_var,
+            width=300,
+            placeholder_text="Haga clic en Examinar..."
+        )
+        entry_directorio.pack(side="left", padx=5)
+
+        def seleccionar_directorio():
+            directorio = filedialog.askdirectory(title="Seleccionar carpeta de destino")
+            if directorio:
+                directorio_var.set(directorio)
+
+        ctk.CTkButton(
+            frame_directorio,
+            text="Examinar",
+            command=seleccionar_directorio,
+            width=100
+        ).pack(side="left", padx=5)
+
+        # Frame de botones
+        frame_botones = ctk.CTkFrame(dialogo, fg_color="transparent")
+        frame_botones.pack(pady=20)
+
+        def exportar():
+            formato = formato_var.get()
+            directorio = directorio_var.get()
+
+            if not directorio:
+                messagebox.showwarning("Validación", "Debe seleccionar un directorio")
+                return
+
+            try:
+                # Preparar datos del reporte
+                from datetime import datetime
+                import os
+
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+                # Obtener datos
+                clientes = consultas.obtener_clientes()
+                materiales = consultas.obtener_materiales()
+                pedidos = consultas.obtener_pedidos()
+                servicios = consultas.obtener_servicios()
+
+                # Preparar datos para exportación
+                datos = []
+
+                # Sección 1: Resumen general
+                datos.append(["=== REPORTE DEL SISTEMA ===", "", ""])
+                datos.append(["Fecha:", datetime.now().strftime('%d/%m/%Y %H:%M'), ""])
+                datos.append(["", "", ""])
+                datos.append(["ESTADÍSTICAS GENERALES", "", ""])
+                datos.append(["Total de Clientes:", len(clientes), ""])
+                datos.append(["Total de Pedidos:", len(pedidos), ""])
+                datos.append(["Total de Servicios:", len(servicios), ""])
+                datos.append(["Total de Materiales:", len(materiales), ""])
+                datos.append(["", "", ""])
+
+                # Sección 2: Materiales con stock bajo
+                materiales_bajo = consultas.obtener_materiales_bajo_stock()
+                datos.append(["ALERTAS DE INVENTARIO", "", ""])
+                datos.append(["Material", "Stock Actual", "Stock Mínimo"])
+                for mat in materiales_bajo:
+                    datos.append([mat['nombre_material'], mat['cantidad_stock'], mat['stock_minimo']])
+
+                columnas = ["Categoría", "Valor", "Detalle"]
+
+                # Crear nombre de archivo
+                extensiones = {"excel": "xlsx", "pdf": "pdf", "csv": "csv"}
+                nombre_archivo = f"reporte_sistema_{timestamp}.{extensiones[formato]}"
+                ruta_completa = os.path.join(directorio, nombre_archivo)
+
+                # Exportar según formato
+                if formato == "csv":
+                    exito = exportar_a_csv(datos, columnas, ruta_completa)
+                elif formato == "excel":
+                    exito = exportar_a_excel(datos, columnas, ruta_completa, "Reporte del Sistema")
+                else:  # pdf
+                    exito = exportar_a_pdf(datos, columnas, ruta_completa, "Reporte del Sistema", 'portrait')
+
+                if exito:
+                    messagebox.showinfo("Éxito", f"Reporte exportado correctamente:\n{ruta_completa}")
+                    dialogo.destroy()
+                else:
+                    messagebox.showerror("Error", "No se pudo exportar el reporte")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al exportar: {str(e)}")
+
+        btn_cancelar = ctk.CTkButton(
+            frame_botones,
+            text="Cancelar",
+            command=dialogo.destroy,
+            width=120,
+            height=40,
+            fg_color="gray"
+        )
+        btn_cancelar.pack(side="left", padx=10)
+
+        btn_exportar = ctk.CTkButton(
+            frame_botones,
+            text="Exportar",
+            command=exportar,
+            width=120,
+            height=40,
+            fg_color=COLOR_SUCCESS
+        )
+        btn_exportar.pack(side="left", padx=10)

@@ -27,7 +27,7 @@ class PanelClientes(ctk.CTkFrame):
 
         self.titulo = ctk.CTkLabel(
             frame_titulo,
-            text="👥 Gestión de Clientes",
+            text="Gestión de Clientes",
             font=ctk.CTkFont(size=32, weight="bold")
         )
         self.titulo.pack(side="left")
@@ -45,7 +45,7 @@ class PanelClientes(ctk.CTkFrame):
 
         self.btn_actualizar = ctk.CTkButton(
             frame_titulo,
-            text="🔄 Actualizar",
+            text="Actualizar",
             command=self._cargar_clientes,
             height=40,
             width=140
@@ -58,7 +58,7 @@ class PanelClientes(ctk.CTkFrame):
 
         self.entry_buscar = ctk.CTkEntry(
             frame_buscar,
-            placeholder_text="🔍 Buscar cliente...",
+            placeholder_text="Buscar cliente...",
             width=400,
             height=40,
             font=ctk.CTkFont(size=14)
@@ -149,7 +149,7 @@ class PanelClientes(ctk.CTkFrame):
 
         btn_editar = ctk.CTkButton(
             frame_acciones,
-            text="✏️ Editar",
+            text="Editar",
             command=lambda c=cliente: self._editar_cliente(c),
             width=80,
             height=30,
@@ -159,7 +159,7 @@ class PanelClientes(ctk.CTkFrame):
 
         btn_pedidos = ctk.CTkButton(
             frame_acciones,
-            text="📋 Pedidos",
+            text="Pedidos",
             command=lambda c=cliente: self._ver_pedidos_cliente(c),
             width=90,
             height=30,
@@ -248,7 +248,7 @@ class PanelClientes(ctk.CTkFrame):
 
         btn_guardar = ctk.CTkButton(
             dialogo,
-            text="💾 Guardar",
+            text="Guardar",
             command=guardar,
             height=40,
             font=ctk.CTkFont(size=14, weight="bold"),

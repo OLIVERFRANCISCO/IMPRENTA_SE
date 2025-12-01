@@ -5,47 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2cf5dfb0-03bb-4778-851c-e361ed696557" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.github-instruction/copilot-instruction.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/Imprenta_SE.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/libcrypto-3.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/libffi-8.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/libssl-3.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/pyexpat.pyd" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/python.exe" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/python3.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/python313.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/pythonw.exe" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/select.pyd" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/sqlite3.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/vcruntime140.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/Scripts/vcruntime140_1.dll" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.venv/pyvenv.cfg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ESTADO_FINAL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/INSTRUCCIONES_DE_USO.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/database/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/database/conexion.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/database/consultas.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/logic/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/logic/calculos.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/logic/reglas_experto.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/main_window.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/panel_clientes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/panel_inventario.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/panel_pedidos.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/ui/panel_reportes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fix_tkinter.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test_sistema.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CORRECCION_ERROR_IMPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_DEV.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ESTADO_FINAL.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RESUMEN_CAMBIOS_67-78.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_USER.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/RESUMEN_NUEVAS_FUNCIONALIDADES.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/database/conexion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/conexion.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/database/consultas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/consultas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/logic/cola_produccion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/cola_produccion.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/logic/exportacion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/exportacion.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/logic/reglas_experto.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/reglas_experto.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/main_window.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/main_window.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_clientes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_inventario.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_inventario.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_maquinas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_maquinas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_reportes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_reportes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_servicios.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_servicios.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/widgets.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/widgets.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fix_tkinter.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,17 +35,25 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/app/database/conexion.py" root0="SKIP_INSPECTION" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6
 }</component>
   <component name="ProjectId" id="36AblOJmu3zyTAEzN4N7RJpzdMG" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.panel_inventario.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
@@ -88,18 +76,20 @@
       <option name="presentableId" value="Default" />
       <updated>1764452473860</updated>
     </task>
+    <task id="LOCAL-00001" summary="primera version">
+      <option name="closed" value="true" />
+      <created>1764459607976</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1764459607976</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/app/ui/panel_inventario.py</url>
-          <line>4</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="primera version" />
+    <option name="LAST_COMMIT_MESSAGE" value="primera version" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

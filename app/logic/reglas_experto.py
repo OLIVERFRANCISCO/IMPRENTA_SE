@@ -9,6 +9,11 @@ from app.config import (
     TIEMPO_COMPRA_MATERIAL,
     TIEMPO_DISEÑO
 )
+from app.logic.cola_produccion import (
+    calcular_fecha_entrega_con_cola,
+    estimar_tiempo_produccion_por_tipo,
+    obtener_info_cola_produccion
+)
 from app.database.consultas import obtener_material_por_id
 
 
@@ -137,58 +142,81 @@ def sugerir_material(tipo_trabajo, uso_final="general"):
 
 # ========== REGLA 3: ESTIMACIÓN DE TIEMPO DE ENTREGA ==========
 
-def estimar_tiempo_entrega(material_en_stock, requiere_diseño=False, es_urgente=False):
+def estimar_tiempo_entrega(tipo_servicio="general", area_m2=0, cantidad=1, material_en_stock=True,
+                          requiere_diseño=False, es_urgente=False):
     """
-    Regla de Tiempo de Entrega
-
-    SI Material_En_Stock = FALSO ENTONCES Tiempo = Tiempo_Producción + Tiempo_Compra_Material
-    SI Requiere_Diseño = VERDADERO ENTONCES Tiempo += Tiempo_Diseño
+    Regla de Tiempo de Entrega considerando:
+    - Cola de producción actual (pedidos pendientes)
+    - Jornada laboral de 12 horas/día
+    - Tiempo de compra de material si no hay stock
+    - Tiempo de diseño si es necesario
+    - Pedidos urgentes tienen prioridad
 
     Args:
+        tipo_servicio (str): Tipo de servicio (para estimar tiempo de producción)
+        area_m2 (float): Área en metros cuadrados
+        cantidad (int): Cantidad de unidades
         material_en_stock (bool): Si hay material disponible
         requiere_diseño (bool): Si requiere diseño gráfico
-        es_urgente (bool): Si es pedido urgente
+        es_urgente (bool): Si es pedido urgente (20% recargo)
 
     Returns:
         dict: {
-            'horas_estimadas': int,
+            'horas_estimadas': float,
             'fecha_entrega': datetime,
+            'dias_habiles': int,
             'explicacion': str,
-            'alertas': list
+            'alertas': list,
+            'info_cola': dict,
+            'detalles_calculo': str
         }
     """
-    horas_totales = TIEMPO_PRODUCCION_BASE
     alertas = []
     explicacion_partes = []
 
-    # Regla 1: Material no disponible
-    if not material_en_stock:
-        horas_totales += TIEMPO_COMPRA_MATERIAL
-        alertas.append("⚠️ Se requiere comprar material")
-        explicacion_partes.append(f"+ {TIEMPO_COMPRA_MATERIAL}h por compra de material")
+    # 1. Estimar tiempo de producción base según el tipo de servicio
+    horas_produccion = estimar_tiempo_produccion_por_tipo(tipo_servicio, area_m2, cantidad)
+    explicacion_partes.append(f"Tiempo de producción: {horas_produccion:.1f}h")
 
-    # Regla 2: Requiere diseño
+    # 2. Agregar tiempo de diseño si es necesario
     if requiere_diseño:
-        horas_totales += TIEMPO_DISEÑO
-        explicacion_partes.append(f"+ {TIEMPO_DISEÑO}h por diseño gráfico")
+        horas_produccion += TIEMPO_DISEÑO
+        explicacion_partes.append(f"+ Diseño gráfico: {TIEMPO_DISEÑO}h")
 
-    # Regla 3: Pedido urgente (reduce tiempo pero con advertencia)
+    # 3. Considerar tiempo de compra de material
+    if not material_en_stock:
+        horas_produccion += TIEMPO_COMPRA_MATERIAL
+        alertas.append("ADVERTENCIA: Se requiere comprar material")
+        explicacion_partes.append(f"+ Compra de material: {TIEMPO_COMPRA_MATERIAL}h")
+
+    # 4. Calcular fecha de entrega considerando cola de producción
+    calculo_cola = calcular_fecha_entrega_con_cola(
+        horas_requeridas=horas_produccion,
+        es_urgente=es_urgente
+    )
+
+    # 5. Agregar alertas sobre urgencia
     if es_urgente:
-        horas_totales = int(horas_totales * 0.7)  # 30% más rápido
-        alertas.append("⚡ Pedido urgente: puede tener recargo del 20%")
-        explicacion_partes.append("Producción acelerada")
+        alertas.append(f"URGENTE: Pedido urgente con recargo del {calculo_cola['recargo_porcentaje']:.0f}%")
 
-    # Calcular fecha de entrega
-    fecha_entrega = datetime.now() + timedelta(hours=horas_totales)
+    # 6. Obtener información de la cola
+    info_cola = obtener_info_cola_produccion()
 
-    explicacion_base = f"Tiempo base de producción: {TIEMPO_PRODUCCION_BASE}h"
-    explicacion_completa = explicacion_base + " " + ", ".join(explicacion_partes) if explicacion_partes else explicacion_base
+    explicacion_completa = "\n".join(explicacion_partes)
 
     return {
-        'horas_estimadas': horas_totales,
-        'fecha_entrega': fecha_entrega,
+        'horas_estimadas': horas_produccion,
+        'fecha_entrega': calculo_cola['fecha_entrega'],
+        'dias_habiles': calculo_cola['dias_habiles'],
+        'alertas': alertas,
         'explicacion': explicacion_completa,
-        'alertas': alertas
+        'info_cola': {
+            'pedidos_pendientes': info_cola['pedidos_en_cola'],
+            'horas_en_cola': info_cola['horas_pendientes'],
+            'dias_ocupados': info_cola['dias_ocupados'],
+            'estado_produccion': info_cola['estado']
+        },
+        'detalles_calculo': calculo_cola['explicacion']
     }
 
 
@@ -219,21 +247,21 @@ def validar_metraje(ancho, alto, tipo_trabajo):
 
     # Validación 2: Dimensiones sospechosamente grandes
     if ancho > 5 or alto > 20:
-        advertencias.append(f"⚠️ Dimensiones muy grandes: {ancho}m x {alto}m. Verificar si es correcto.")
+        advertencias.append(f"ADVERTENCIA: Dimensiones muy grandes: {ancho}m x {alto}m. Verificar si es correcto.")
 
     # Validación 3: Dimensiones muy pequeñas para gigantografías
     tipo_lower = tipo_trabajo.lower()
     if "gigantograf" in tipo_lower or "banner" in tipo_lower:
         if ancho < 0.5 or alto < 0.5:
-            advertencias.append("⚠️ Las gigantografías normalmente son más grandes. Verificar medidas.")
+            advertencias.append("ADVERTENCIA: Las gigantografías normalmente son más grandes. Verificar medidas.")
 
     # Validación 4: Ancho vs Alto invertidos (error común)
     if "tarjeta" in tipo_lower and ancho > alto:
-        advertencias.append("⚠️ Posible error: el ancho es mayor que el alto en una tarjeta. Verificar orientación.")
+        advertencias.append("ADVERTENCIA: Posible error - el ancho es mayor que el alto en una tarjeta. Verificar orientación.")
 
     # Validación 5: Dimensiones decimales muy precisas (posible error de conversión)
     if (ancho % 0.05 != 0) or (alto % 0.05 != 0):
-        advertencias.append("💡 Consejo: redondear a 5cm para facilitar el corte.")
+        advertencias.append("SUGERENCIA: Redondear a 5cm para facilitar el corte.")
 
     es_valido = len(errores) == 0
 
@@ -320,27 +348,28 @@ def analizar_rentabilidad(costo_material, costo_mano_obra, precio_venta):
             'es_rentable': False,
             'margen_porcentaje': round(margen_porcentaje, 2),
             'ganancia_neta': round(ganancia_neta, 2),
-            'recomendacion': '❌ Margen muy bajo. Se recomienda aumentar el precio o reducir costos.'
+            'recomendacion': 'Margen muy bajo. Se recomienda aumentar el precio o reducir costos.'
         }
     elif margen_porcentaje < 30:
         return {
             'es_rentable': True,
             'margen_porcentaje': round(margen_porcentaje, 2),
             'ganancia_neta': round(ganancia_neta, 2),
-            'recomendacion': '⚠️ Margen aceptable pero ajustado. Considerar optimizar costos.'
+            'recomendacion': 'Margen aceptable pero ajustado. Considerar optimizar costos.'
         }
     else:
         return {
             'es_rentable': True,
             'margen_porcentaje': round(margen_porcentaje, 2),
             'ganancia_neta': round(ganancia_neta, 2),
-            'recomendacion': '✅ Margen saludable. Pedido rentable.'
+            'recomendacion': 'Margen saludable. Pedido rentable.'
         }
 
 
 # ========== FUNCIÓN INTEGRADORA ==========
 
-def analizar_pedido_completo(tipo_trabajo, ancho, alto, material_disponible, requiere_diseño=False):
+def analizar_pedido_completo(tipo_trabajo, ancho, alto, cantidad=1, material_disponible=True,
+                            requiere_diseño=False, es_urgente=False):
     """
     Función integradora que ejecuta todas las reglas del sistema experto
 
@@ -348,16 +377,29 @@ def analizar_pedido_completo(tipo_trabajo, ancho, alto, material_disponible, req
         tipo_trabajo (str): Tipo de servicio
         ancho (float): Ancho en metros
         alto (float): Alto en metros
+        cantidad (int): Cantidad de unidades
         material_disponible (bool): Si hay material en stock
         requiere_diseño (bool): Si requiere diseño
+        es_urgente (bool): Si es pedido urgente
 
     Returns:
         dict: Análisis completo con todas las recomendaciones
     """
+    # Calcular área
+    from app.logic.calculos import calcular_area
+    area_m2 = calcular_area(ancho, alto)
+
     return {
         'maquina': sugerir_maquina(tipo_trabajo, ancho, alto),
         'material': sugerir_material(tipo_trabajo),
-        'tiempo': estimar_tiempo_entrega(material_disponible, requiere_diseño),
+        'tiempo': estimar_tiempo_entrega(
+            tipo_servicio=tipo_trabajo,
+            area_m2=area_m2,
+            cantidad=cantidad,
+            material_en_stock=material_disponible,
+            requiere_diseño=requiere_diseño,
+            es_urgente=es_urgente
+        ),
         'validacion_metraje': validar_metraje(ancho, alto, tipo_trabajo),
         'acabados': sugerir_acabado(tipo_trabajo)
     }

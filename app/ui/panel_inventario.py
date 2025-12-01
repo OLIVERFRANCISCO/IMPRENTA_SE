@@ -28,7 +28,7 @@ class PanelInventario(ctk.CTkFrame):
 
         self.titulo = ctk.CTkLabel(
             frame_titulo,
-            text="📦 Gestión de Inventario",
+            text="Gestión de Inventario",
             font=ctk.CTkFont(size=32, weight="bold")
         )
         self.titulo.pack(side="left")
@@ -46,7 +46,7 @@ class PanelInventario(ctk.CTkFrame):
 
         self.btn_actualizar = ctk.CTkButton(
             frame_titulo,
-            text="🔄 Actualizar",
+            text="Actualizar",
             command=self._cargar_materiales,
             height=40,
             width=140
@@ -82,7 +82,7 @@ class PanelInventario(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 self.frame_alertas,
-                text=f"⚠️ {len(materiales_bajo_stock)} material(es) con stock bajo",
+                text=f"ADVERTENCIA: {len(materiales_bajo_stock)} material(es) con stock bajo",
                 font=ctk.CTkFont(size=14, weight="bold"),
                 text_color="white"
             ).pack(pady=10, padx=15)
@@ -176,9 +176,9 @@ class PanelInventario(ctk.CTkFrame):
 
         btn_editar = ctk.CTkButton(
             frame_acciones,
-            text="✏️",
+            text="Editar",
             command=lambda m=material: self._editar_material(m),
-            width=40,
+            width=60,
             height=30,
             fg_color=COLOR_PRIMARY
         )
@@ -186,26 +186,36 @@ class PanelInventario(ctk.CTkFrame):
 
         btn_agregar_stock = ctk.CTkButton(
             frame_acciones,
-            text="+",
+            text="+ Stock",
             command=lambda m=material: self._agregar_stock(m),
-            width=40,
+            width=70,
             height=30,
             fg_color=COLOR_SUCCESS
         )
         btn_agregar_stock.pack(side="left", padx=2)
 
+        btn_eliminar = ctk.CTkButton(
+            frame_acciones,
+            text="Eliminar",
+            command=lambda m=material: self._confirmar_eliminar_material(m),
+            width=70,
+            height=30,
+            fg_color=COLOR_DANGER
+        )
+        btn_eliminar.pack(side="left", padx=2)
+
     def _mostrar_dialogo_material(self, material=None):
         """Muestra diálogo para agregar o editar material"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Nuevo Material" if material is None else "Editar Material")
-        dialogo.geometry("500x450")
+        dialogo.geometry("500x570")
         dialogo.transient(self)
         dialogo.grab_set()
 
         # Centrar ventana
         dialogo.update_idletasks()
         x = (dialogo.winfo_screenwidth() // 2) - (500 // 2)
-        y = (dialogo.winfo_screenheight() // 2) - (450 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (570 // 2)
         dialogo.geometry(f"+{x}+{y}")
 
         # Campos
@@ -282,8 +292,122 @@ class PanelInventario(ctk.CTkFrame):
         btn_guardar.pack(pady=20)
 
     def _editar_material(self, material):
-        """Edita un material existente"""
-        self._mostrar_dialogo_material(material)
+        """Edita un material existente con confirmación"""
+        dialogo_confirm = ctk.CTkToplevel(self)
+        dialogo_confirm.title("Confirmar Edición")
+        dialogo_confirm.geometry("450x200")
+        dialogo_confirm.transient(self)
+        dialogo_confirm.grab_set()
+
+        # Centrar ventana
+        dialogo_confirm.update_idletasks()
+        x = (dialogo_confirm.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialogo_confirm.winfo_screenheight() // 2) - (200 // 2)
+        dialogo_confirm.geometry(f"+{x}+{y}")
+
+        ctk.CTkLabel(
+            dialogo_confirm,
+            text="¿Está seguro de editar este material?",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(30, 10))
+
+        ctk.CTkLabel(
+            dialogo_confirm,
+            text=f"Material: {material['nombre_material']}",
+            font=ctk.CTkFont(size=14)
+        ).pack(pady=5)
+
+        frame_botones = ctk.CTkFrame(dialogo_confirm, fg_color="transparent")
+        frame_botones.pack(pady=20)
+
+        def confirmar_edicion():
+            dialogo_confirm.destroy()
+            self._mostrar_dialogo_material(material)
+
+        btn_cancelar = ctk.CTkButton(
+            frame_botones,
+            text="Cancelar",
+            command=dialogo_confirm.destroy,
+            width=120,
+            height=40,
+            fg_color="gray"
+        )
+        btn_cancelar.pack(side="left", padx=10)
+
+        btn_confirmar = ctk.CTkButton(
+            frame_botones,
+            text="Sí, Editar",
+            command=confirmar_edicion,
+            width=120,
+            height=40,
+            fg_color=COLOR_PRIMARY
+        )
+        btn_confirmar.pack(side="left", padx=10)
+
+    def _confirmar_eliminar_material(self, material):
+        """Muestra diálogo de confirmación antes de eliminar material"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Confirmar Eliminación")
+        dialogo.geometry("450x250")
+        dialogo.transient(self)
+        dialogo.grab_set()
+
+        # Centrar ventana
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (250 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+
+        ctk.CTkLabel(
+            dialogo,
+            text="¿Está seguro de eliminar este material?",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(30, 10))
+
+        ctk.CTkLabel(
+            dialogo,
+            text=f"Material: {material['nombre_material']}",
+            font=ctk.CTkFont(size=14)
+        ).pack(pady=5)
+
+        ctk.CTkLabel(
+            dialogo,
+            text="Esta acción no se puede deshacer.",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack(pady=10)
+
+        frame_botones = ctk.CTkFrame(dialogo, fg_color="transparent")
+        frame_botones.pack(pady=20)
+
+        def eliminar():
+            try:
+                consultas.eliminar_material(material['id_material'])
+                messagebox.showinfo("Éxito", "Material eliminado correctamente")
+                dialogo.destroy()
+                self._cargar_materiales()
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo eliminar el material: {str(e)}")
+
+        btn_cancelar = ctk.CTkButton(
+            frame_botones,
+            text="Cancelar",
+            command=dialogo.destroy,
+            width=120,
+            height=40,
+            fg_color="gray"
+        )
+        btn_cancelar.pack(side="left", padx=10)
+
+        btn_confirmar = ctk.CTkButton(
+            frame_botones,
+            text="Sí, Eliminar",
+            command=eliminar,
+            width=120,
+            height=40,
+            fg_color=COLOR_DANGER
+        )
+        btn_confirmar.pack(side="left", padx=10)
 
     def _agregar_stock(self, material):
         """Muestra diálogo para agregar stock"""
@@ -301,4 +425,3 @@ class PanelInventario(ctk.CTkFrame):
                 self._cargar_materiales()
             except ValueError:
                 messagebox.showerror("Error", "Cantidad inválida")
-
