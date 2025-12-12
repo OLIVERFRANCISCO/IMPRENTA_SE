@@ -101,9 +101,9 @@ class PanelInventario(ctk.CTkFrame):
         # Crear encabezados de tabla
         frame_header = ctk.CTkFrame(self.scroll_frame, fg_color=COLOR_PRIMARY)
         frame_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        frame_header.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        frame_header.grid_columnconfigure((0, 1, 2, 3, 4, 5, 6), weight=1)
 
-        headers = ["Material", "Stock Actual", "Unidad", "Stock Mínimo", "Precio/Unidad", "Acciones"]
+        headers = ["Material", "Ancho (m)", "Stock Actual", "Unidad", "Stock Mín.", "Precio/Und.", "Acciones"]
         for i, header in enumerate(headers):
             ctk.CTkLabel(
                 frame_header,
@@ -131,7 +131,7 @@ class PanelInventario(ctk.CTkFrame):
 
         frame_fila = ctk.CTkFrame(self.scroll_frame, fg_color=fg_color)
         frame_fila.grid(row=fila, column=0, sticky="ew", pady=2)
-        frame_fila.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        frame_fila.grid_columnconfigure((0, 1, 2, 3, 4, 5, 6), weight=1)
 
         # Nombre
         ctk.CTkLabel(
@@ -141,38 +141,51 @@ class PanelInventario(ctk.CTkFrame):
             text_color=text_color
         ).grid(row=0, column=0, padx=10, pady=10, sticky="w")
 
+        # RQ-05, RQ-06: Ancho de bobina - Acceso seguro a datos ORM
+        # Convertir a dict si es necesario para acceso consistente
+        material_dict = dict(material) if hasattr(material, 'keys') and callable(material.keys) else material
+        ancho_bobina = material_dict.get('ancho_bobina', 0.0) if isinstance(material_dict, dict) else 0.0
+
+        ancho_texto = f"{ancho_bobina:.2f}" if ancho_bobina and ancho_bobina > 0 else "-"
+        ctk.CTkLabel(
+            frame_fila,
+            text=ancho_texto,
+            font=ctk.CTkFont(size=11),
+            text_color=text_color
+        ).grid(row=0, column=1, padx=10, pady=10)
+
         # Stock actual
         ctk.CTkLabel(
             frame_fila,
             text=str(material['cantidad_stock']),
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=text_color
-        ).grid(row=0, column=1, padx=10, pady=10)
+        ).grid(row=0, column=2, padx=10, pady=10)
 
         # Unidad
         ctk.CTkLabel(
             frame_fila,
             text=material['unidad_medida'],
             text_color=text_color
-        ).grid(row=0, column=2, padx=10, pady=10)
+        ).grid(row=0, column=3, padx=10, pady=10)
 
         # Stock mínimo
         ctk.CTkLabel(
             frame_fila,
             text=str(material['stock_minimo']),
             text_color=text_color
-        ).grid(row=0, column=3, padx=10, pady=10)
+        ).grid(row=0, column=4, padx=10, pady=10)
 
         # Precio
         ctk.CTkLabel(
             frame_fila,
             text=f"S/ {material['precio_por_unidad']:.2f}",
             text_color=text_color
-        ).grid(row=0, column=4, padx=10, pady=10)
+        ).grid(row=0, column=5, padx=10, pady=10)
 
         # Botones de acción
         frame_acciones = ctk.CTkFrame(frame_fila, fg_color="transparent")
-        frame_acciones.grid(row=0, column=5, padx=10, pady=5)
+        frame_acciones.grid(row=0, column=6, padx=10, pady=5)
 
         btn_editar = ctk.CTkButton(
             frame_acciones,
@@ -207,26 +220,58 @@ class PanelInventario(ctk.CTkFrame):
     def _mostrar_dialogo_material(self, material=None):
         """Muestra diálogo para agregar o editar material"""
         dialogo = ctk.CTkToplevel(self)
-        dialogo.title("Nuevo Material" if material is None else "Editar Material")
-        dialogo.geometry("500x570")
+        dialogo.title("Nuevo Material / Rollo" if material is None else "Editar Material")
+        dialogo.geometry("500x650")
         dialogo.transient(self)
         dialogo.grab_set()
 
         # Centrar ventana
         dialogo.update_idletasks()
         x = (dialogo.winfo_screenwidth() // 2) - (500 // 2)
-        y = (dialogo.winfo_screenheight() // 2) - (570 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (650 // 2)
         dialogo.geometry(f"+{x}+{y}")
 
         # Campos
         ctk.CTkLabel(dialogo, text="Nombre del Material:", font=ctk.CTkFont(size=12)).pack(pady=(20, 5))
-        entry_nombre = ctk.CTkEntry(dialogo, width=400)
+        entry_nombre = ctk.CTkEntry(dialogo, width=400, placeholder_text="Ej: Lona 13oz, Vinil Adhesivo")
         entry_nombre.pack(pady=5)
         if material:
             entry_nombre.insert(0, material['nombre_material'])
 
+        # NUEVO: Campo Ancho de Bobina
+        ctk.CTkLabel(
+            dialogo,
+            text="Ancho de Bobina (metros):",
+            font=ctk.CTkFont(size=12)
+        ).pack(pady=(10, 5))
+
+        frame_ancho = ctk.CTkFrame(dialogo, fg_color="transparent")
+        frame_ancho.pack(pady=5)
+
+        entry_ancho_bobina = ctk.CTkEntry(
+            frame_ancho,
+            width=200,
+            placeholder_text="Ej: 1.10, 1.50, 1.60"
+        )
+        entry_ancho_bobina.pack(side="left", padx=5)
+
+        ctk.CTkLabel(
+            frame_ancho,
+            text="(Dejar en 0 si no es rollo)",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        ).pack(side="left")
+
+        if material:
+            # RQ-07: Acceso seguro a datos ORM - Convertir a dict si es necesario
+            material_dict = dict(material) if hasattr(material, 'keys') and callable(material.keys) else material
+            ancho = material_dict.get('ancho_bobina', 0.0) if isinstance(material_dict, dict) else 0.0
+            entry_ancho_bobina.insert(0, str(ancho) if ancho and ancho > 0 else "0")
+        else:
+            entry_ancho_bobina.insert(0, "0")
+
         ctk.CTkLabel(dialogo, text="Cantidad en Stock:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        entry_cantidad = ctk.CTkEntry(dialogo, width=400)
+        entry_cantidad = ctk.CTkEntry(dialogo, width=400, placeholder_text="Cantidad disponible")
         entry_cantidad.pack(pady=5)
         if material:
             entry_cantidad.insert(0, str(material['cantidad_stock']))
@@ -236,9 +281,11 @@ class PanelInventario(ctk.CTkFrame):
         combo_unidad.pack(pady=5)
         if material:
             combo_unidad.set(material['unidad_medida'])
+        else:
+            combo_unidad.set("metros")
 
         ctk.CTkLabel(dialogo, text="Stock Mínimo:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        entry_stock_min = ctk.CTkEntry(dialogo, width=400)
+        entry_stock_min = ctk.CTkEntry(dialogo, width=400, placeholder_text="Cantidad mínima recomendada")
         entry_stock_min.pack(pady=5)
         if material:
             entry_stock_min.insert(0, str(material['stock_minimo']))
@@ -246,7 +293,7 @@ class PanelInventario(ctk.CTkFrame):
             entry_stock_min.insert(0, "5")
 
         ctk.CTkLabel(dialogo, text="Precio por Unidad:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        entry_precio = ctk.CTkEntry(dialogo, width=400)
+        entry_precio = ctk.CTkEntry(dialogo, width=400, placeholder_text="Precio en soles")
         entry_precio.pack(pady=5)
         if material:
             entry_precio.insert(0, str(material['precio_por_unidad']))
@@ -260,26 +307,42 @@ class PanelInventario(ctk.CTkFrame):
                 unidad = combo_unidad.get()
                 stock_min = float(entry_stock_min.get())
                 precio = float(entry_precio.get())
+                ancho_bobina = float(entry_ancho_bobina.get() or 0)
 
                 if not nombre:
                     messagebox.showwarning("Validación", "Debe ingresar un nombre")
                     return
 
                 if material:
-                    consultas.actualizar_material(
+                    # Actualizar material existente
+                    consultas.actualizar_material_con_ancho(
                         material['id_material'],
-                        nombre, cantidad, unidad, stock_min, precio
+                        nombre, cantidad, unidad, stock_min, precio, ancho_bobina
                     )
                     messagebox.showinfo("Éxito", "Material actualizado correctamente")
                 else:
-                    consultas.guardar_material(nombre, cantidad, unidad, stock_min, precio)
-                    messagebox.showinfo("Éxito", "Material agregado correctamente")
+                    # Nuevo material/rollo
+                    if ancho_bobina > 0:
+                        # Es un rollo con ancho específico
+                        consultas.guardar_nuevo_rollo(
+                            nombre, ancho_bobina, cantidad, unidad, stock_min, precio
+                        )
+                        messagebox.showinfo(
+                            "Éxito",
+                            f"Rollo agregado correctamente\n"
+                            f"Material: {nombre}\n"
+                            f"Ancho: {ancho_bobina}m"
+                        )
+                    else:
+                        # Material sin especificación de ancho
+                        consultas.guardar_material(nombre, cantidad, unidad, stock_min, precio)
+                        messagebox.showinfo("Éxito", "Material agregado correctamente")
 
                 dialogo.destroy()
                 self._cargar_materiales()
 
-            except ValueError:
-                messagebox.showerror("Error", "Datos inválidos. Verifique los campos numéricos.")
+            except ValueError as e:
+                messagebox.showerror("Error", f"Datos inválidos: {str(e)}\nVerifique los campos numéricos.")
 
         btn_guardar = ctk.CTkButton(
             dialogo,

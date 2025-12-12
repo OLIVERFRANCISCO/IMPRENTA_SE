@@ -1,6 +1,14 @@
 """
 Motor del Sistema Experto
 Contiene las reglas IF-THEN para recomendar máquinas, materiales y tiempos
+
+PERMISOS DE ACCESO:
+- Lectura (consultar reglas): Todos los usuarios autenticados
+- Modificación de reglas: Solo administradores
+- Estas funciones se ejecutan internamente por el sistema
+
+NOTA: Para editar reglas del sistema experto, acceda al Panel de Administración.
+Solo administradores pueden modificar parámetros y configuraciones.
 """
 from datetime import datetime, timedelta
 from app.config import (
@@ -15,6 +23,7 @@ from app.logic.cola_produccion import (
     obtener_info_cola_produccion
 )
 from app.database.consultas import obtener_material_por_id
+from app.logic.auth_service import auth_service
 
 
 # ========== REGLA 1: RECOMENDACIÓN DE MÁQUINA ==========
@@ -143,7 +152,7 @@ def sugerir_material(tipo_trabajo, uso_final="general"):
 # ========== REGLA 3: ESTIMACIÓN DE TIEMPO DE ENTREGA ==========
 
 def estimar_tiempo_entrega(tipo_servicio="general", area_m2=0, cantidad=1, material_en_stock=True,
-                          requiere_diseño=False, es_urgente=False):
+                            requiere_diseño=False, es_urgente=False):
     """
     Regla de Tiempo de Entrega considerando:
     - Cola de producción actual (pedidos pendientes)

@@ -1,271 +1,183 @@
 """
-Módulo de conexión a la base de datos SQLite
-Crea las tablas si no existen y gestiona la conexión
+Módulo de conexión a la base de datos SQLite usando SQLAlchemy ORM
+Gestiona la sesión y configuración de la base de datos
 """
-import sqlite3
-from pathlib import Path
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.pool import StaticPool
+from contextlib import contextmanager
 from app.config import DB_PATH
+from app.database.models import Base
 
 
 class DatabaseConnection:
-    """Clase singleton para gestionar la conexión a SQLite"""
+    """
+    Clase singleton para gestionar la conexión con SQLAlchemy ORM
+    
+    Proporciona acceso a la sesión de base de datos y maneja
+    la inicialización de tablas y datos
+    """
 
     _instance = None
-    _connection = None
+    _engine = None
+    _session_factory = None
+    _Session = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(DatabaseConnection, cls).__new__(cls)
+            cls._instance._initialize()
         return cls._instance
 
-    def get_connection(self):
-        """Retorna la conexión a la base de datos"""
-        if self._connection is None:
-            self._connection = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-            self._connection.row_factory = sqlite3.Row  # Permite acceder a columnas por nombre
-            self._inicializar_db()
-        return self._connection
-
-    def _inicializar_db(self):
-        """Crea las tablas si no existen"""
-        cursor = self._connection.cursor()
-
-        # 1. Tabla de CLIENTES
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS clientes (
-                id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_completo TEXT NOT NULL,
-                telefono TEXT,
-                email TEXT,
-                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # 2. Tabla de MAQUINAS
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS maquinas (
-                id_maquina INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                tipo TEXT NOT NULL
-            )
-        """)
-
-        # 3. Tabla de SERVICIOS
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS servicios (
-                id_servicio INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_servicio TEXT NOT NULL,
-                unidad_cobro TEXT NOT NULL,
-                precio_base REAL DEFAULT 0,
-                id_maquina_sugerida INTEGER,
-                FOREIGN KEY (id_maquina_sugerida) REFERENCES maquinas(id_maquina)
-            )
-        """)
-
-        # 3.1 Tabla de SERVICIOS_MATERIALES (Relación muchos a muchos)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS servicios_materiales (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_servicio INTEGER NOT NULL,
-                id_material INTEGER NOT NULL,
-                FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio),
-                FOREIGN KEY (id_material) REFERENCES materiales(id_material),
-                UNIQUE(id_servicio, id_material)
-            )
-        """)
-
-        # 4. Tabla de ESTADOS_PEDIDOS
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS estados_pedidos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL UNIQUE,
-                color TEXT NOT NULL DEFAULT '#808080'
-            )
-        """)
-
-        # 5. Tabla de MATERIALES (INVENTARIO)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS materiales (
-                id_material INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_material TEXT NOT NULL,
-                cantidad_stock REAL NOT NULL,
-                unidad_medida TEXT NOT NULL,
-                stock_minimo REAL DEFAULT 5,
-                precio_por_unidad REAL DEFAULT 0
-            )
-        """)
-
-        # 6. Tabla de PEDIDOS (CABECERA)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pedidos (
-                id_pedido INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_cliente INTEGER NOT NULL,
-                fecha_ingreso DATETIME DEFAULT CURRENT_TIMESTAMP,
-                fecha_entrega_estimada DATETIME,
-                id_estado INTEGER DEFAULT 1,
-                estado_pago TEXT DEFAULT 'Pendiente',
-                costo_total REAL DEFAULT 0,
-                acuenta REAL DEFAULT 0,
-                observaciones TEXT,
-                FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-                FOREIGN KEY (id_estado) REFERENCES estados_pedidos(id)
-            )
-        """)
-
-        # 7. Tabla de DETALLE_PEDIDO
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS detalles_pedido (
-                id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_pedido INTEGER NOT NULL,
-                id_servicio INTEGER NOT NULL,
-                id_material INTEGER,
-                descripcion TEXT,
-                ancho REAL DEFAULT 0,
-                alto REAL DEFAULT 0,
-                cantidad INTEGER NOT NULL DEFAULT 1,
-                precio_unitario REAL NOT NULL,
-                FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
-                FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio),
-                FOREIGN KEY (id_material) REFERENCES materiales(id_material)
-            )
-        """)
-
-        # 8. Tabla de CONSUMO_MATERIALES (Historial)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS consumo_materiales (
-                id_consumo INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_detalle INTEGER NOT NULL,
-                id_material INTEGER NOT NULL,
-                cantidad_usada REAL NOT NULL,
-                fecha_consumo DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (id_detalle) REFERENCES detalles_pedido(id_detalle),
-                FOREIGN KEY (id_material) REFERENCES materiales(id_material)
-            )
-        """)
-
-        self._connection.commit()
+    def _initialize(self):
+        """Inicializa el engine y session factory de SQLAlchemy"""
+        # Crear engine con SQLite
+        self._engine = create_engine(
+            f'sqlite:///{DB_PATH}',
+            connect_args={'check_same_thread': False},
+            poolclass=StaticPool,
+            echo=False  # Cambiar a True para debug SQL
+        )
+        
+        # Habilitar foreign keys en SQLite
+        @event.listens_for(self._engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+        
+        # Crear todas las tablas definidas en los modelos
+        Base.metadata.create_all(self._engine)
+        
+        # Configurar session factory con scoped_session para thread safety
+        self._session_factory = sessionmaker(bind=self._engine)
+        self._Session = scoped_session(self._session_factory)
+        
+        # Cargar datos iniciales si la BD está vacía
         self._cargar_datos_iniciales()
 
+    def get_session(self):
+        """
+        Retorna una sesión de SQLAlchemy
+        
+        Returns:
+            Session: Sesión de SQLAlchemy para operaciones ORM
+        """
+        return self._Session()
+
+    def get_engine(self):
+        """
+        Retorna el engine de SQLAlchemy
+        
+        Returns:
+            Engine: Engine de SQLAlchemy
+        """
+        return self._engine
+
+    @contextmanager
+    def session_scope(self):
+        """
+        Context manager para manejar transacciones de forma segura
+        
+        Uso:
+            with db.session_scope() as session:
+                cliente = session.query(Cliente).first()
+                
+        Yields:
+            Session: Sesión que hace commit automático al salir
+        """
+        session = self.get_session()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def remove_session(self):
+        """Remueve la sesión actual del registro de scoped_session"""
+        self._Session.remove()
+
     def _cargar_datos_iniciales(self):
-        """Carga datos de ejemplo si las tablas están vacías"""
-        cursor = self._connection.cursor()
-
-        # Verificar si ya hay estados de pedidos
-        cursor.execute("SELECT COUNT(*) FROM estados_pedidos")
-        if cursor.fetchone()[0] == 0:
-            # Insertar estados de pedidos con colores
-            estados = [
-                ("Cotizado", "#9E9E9E"),           # Gris
-                ("Confirmado", "#2196F3"),         # Azul
-                ("En Diseño", "#FF9800"),          # Naranja
-                ("Previsualización Enviada", "#9C27B0"),  # Púrpura
-                ("En Preparación", "#FFC107"),     # Amarillo
-                ("Listo para Entrega", "#4CAF50"), # Verde
-                ("Entregado", "#00C853"),          # Verde Brillante
-                ("Cancelado", "#F44336")           # Rojo
-            ]
-            cursor.executemany("INSERT INTO estados_pedidos (nombre, color) VALUES (?, ?)", estados)
-
-        # Verificar si ya hay máquinas
-        cursor.execute("SELECT COUNT(*) FROM maquinas")
-        if cursor.fetchone()[0] == 0:
-            # Insertar máquinas de ejemplo
-            maquinas = [
-                ("Impresora Láser A3", "Pequeño Formato"),
-                ("Impresora Sublimación", "Pequeño Formato"),
-                ("Plotter HP DesignJet", "Gran Formato"),
-                ("Laminadora Manual", "Acabado")
-            ]
-            cursor.executemany("INSERT INTO maquinas (nombre, tipo) VALUES (?, ?)", maquinas)
-
-        # Verificar si ya hay servicios
-        cursor.execute("SELECT COUNT(*) FROM servicios")
-        if cursor.fetchone()[0] == 0:
-            # Insertar servicios de ejemplo
-            servicios = [
-                ("Gigantografía", "m2", 25.0, 3),
-                ("Banner Roll-Up", "unidad", 80.0, 3),
-                ("Tarjetas de Presentación", "ciento", 15.0, 1),
-                ("Flyers A5", "ciento", 20.0, 1),
-                ("Tazas Personalizadas", "unidad", 12.0, 2),
-                ("Llaveros", "unidad", 3.0, 2)
-            ]
-            cursor.executemany(
-                "INSERT INTO servicios (nombre_servicio, unidad_cobro, precio_base, id_maquina_sugerida) VALUES (?, ?, ?, ?)",
-                servicios
-            )
-
-        # Verificar si ya hay materiales
-        cursor.execute("SELECT COUNT(*) FROM materiales")
-        if cursor.fetchone()[0] == 0:
-            # Insertar materiales de ejemplo
-            materiales = [
-                # Materiales para gigantografía
-                ("Lona 13 onz", 50.0, "metros", 10.0, 8.5),
-                ("Lona 8 onz", 40.0, "metros", 10.0, 6.0),
-                ("Vinil con Laminado Mate", 30.0, "metros", 5.0, 12.0),
-                ("Vinil con Laminado Brillo", 30.0, "metros", 5.0, 12.5),
-                ("Vinil sin Laminado", 35.0, "metros", 5.0, 8.0),
-                # Materiales para formatos
-                ("Papel Couché 300g", 500, "hojas", 50, 0.5),
-                ("Papel Bond 75g", 1000, "hojas", 100, 0.2),
-                ("Papel Fotográfico", 200, "hojas", 30, 1.5),
-                # Materiales para merchandising
-                ("Vinil Adhesivo", 30.0, "metros", 5.0, 6.0),
-                ("Vinil Textil", 20.0, "metros", 3.0, 10.0),
-                # Consumibles
-                ("Tinta Negra", 5, "cartuchos", 1, 45.0),
-                ("Tinta Color", 5, "cartuchos", 1, 55.0),
-                ("Laminado Mate", 25.0, "metros", 5.0, 7.0),
-                ("Laminado Brillo", 25.0, "metros", 5.0, 7.5)
-            ]
-            cursor.executemany(
-                "INSERT INTO materiales (nombre_material, cantidad_stock, unidad_medida, stock_minimo, precio_por_unidad) VALUES (?, ?, ?, ?, ?)",
-                materiales
-            )
-
-        # Verificar si ya hay relaciones servicios-materiales
-        cursor.execute("SELECT COUNT(*) FROM servicios_materiales")
-        if cursor.fetchone()[0] == 0:
-            # Insertar relaciones de servicios con materiales compatibles
-            # Formato: (id_servicio, id_material)
-            relaciones = [
-                # Gigantografía (id_servicio=1) - puede usar lonas y viniles
-                (1, 1),  # Lona 13 onz
-                (1, 2),  # Lona 8 onz
-                (1, 3),  # Vinil con Laminado Mate
-                (1, 4),  # Vinil con Laminado Brillo
-                (1, 5),  # Vinil sin Laminado
-                # Banner Roll-Up (id_servicio=2) - usa lona principalmente
-                (2, 1),  # Lona 13 onz
-                (2, 2),  # Lona 8 onz
-                # Tarjetas de Presentación (id_servicio=3) - papel couché
-                (3, 6),  # Papel Couché 300g
-                # Flyers A5 (id_servicio=4) - papel bond o couché
-                (4, 6),  # Papel Couché 300g
-                (4, 7),  # Papel Bond 75g
-                # Tazas Personalizadas (id_servicio=5) - vinil textil
-                (5, 10), # Vinil Textil
-                # Llaveros (id_servicio=6) - vinil adhesivo
-                (6, 9),  # Vinil Adhesivo
-            ]
-            cursor.executemany(
-                "INSERT INTO servicios_materiales (id_servicio, id_material) VALUES (?, ?)",
-                relaciones
-            )
-
-        self._connection.commit()
+        """
+        Carga datos iniciales si las tablas están vacías
+        
+        Inserta estados de pedidos, máquinas y servicios de ejemplo
+        """
+        from app.database.models import EstadoPedido, Maquina, Servicio
+        
+        with self.session_scope() as session:
+            # Verificar y cargar estados de pedidos
+            if session.query(EstadoPedido).count() == 0:
+                estados = [
+                    EstadoPedido(nombre="Cotizado", color="#9E9E9E"),
+                    EstadoPedido(nombre="Confirmado", color="#2196F3"),
+                    EstadoPedido(nombre="En Diseño", color="#FF9800"),
+                    EstadoPedido(nombre="Previsualización Enviada", color="#9C27B0"),
+                    EstadoPedido(nombre="En Preparación", color="#FFC107"),
+                    EstadoPedido(nombre="Listo para Entrega", color="#4CAF50"),
+                    EstadoPedido(nombre="Entregado", color="#00C853"),
+                    EstadoPedido(nombre="Cancelado", color="#F44336")
+                ]
+                session.add_all(estados)
+                print("✅ Estados de pedidos inicializados")
+            
+            # Verificar y cargar máquinas
+            if session.query(Maquina).count() == 0:
+                maquinas = [
+                    Maquina(nombre="Impresora Láser A3", tipo="Pequeño Formato"),
+                    Maquina(nombre="Impresora Sublimación", tipo="Pequeño Formato"),
+                    Maquina(nombre="Plotter HP DesignJet", tipo="Gran Formato"),
+                    Maquina(nombre="Laminadora Manual", tipo="Acabado")
+                ]
+                session.add_all(maquinas)
+                print("✅ Máquinas inicializadas")
+            
+            # Verificar y cargar servicios
+            if session.query(Servicio).count() == 0:
+                servicios = [
+                    Servicio(nombre_servicio="Gigantografía", unidad_cobro="m2", precio_base=25.0, id_maquina_sugerida=3),
+                    Servicio(nombre_servicio="Banner Roll-Up", unidad_cobro="unidad", precio_base=80.0, id_maquina_sugerida=3),
+                    Servicio(nombre_servicio="Tarjetas de Presentación", unidad_cobro="ciento", precio_base=15.0, id_maquina_sugerida=1),
+                    Servicio(nombre_servicio="Flyers A5", unidad_cobro="ciento", precio_base=20.0, id_maquina_sugerida=1),
+                    Servicio(nombre_servicio="Tazas Personalizadas", unidad_cobro="unidad", precio_base=12.0, id_maquina_sugerida=2),
+                    Servicio(nombre_servicio="Llaveros", unidad_cobro="unidad", precio_base=3.0, id_maquina_sugerida=2)
+                ]
+                session.add_all(servicios)
+                print("✅ Servicios inicializados")
 
     def close(self):
-        """Cierra la conexión a la base de datos"""
-        if self._connection:
-            self._connection.close()
-            self._connection = None
+        """Cierra todas las conexiones y limpia recursos"""
+        if self._Session:
+            self._Session.remove()
+        if self._engine:
+            self._engine.dispose()
+        print("✅ Conexión de base de datos cerrada")
 
 
-# Función de conveniencia para obtener la conexión
-def get_db():
-    """Retorna la conexión a la base de datos"""
+# Función de conveniencia para obtener la sesión
+def get_session():
+    """
+    Retorna una sesión de SQLAlchemy
+    
+    Returns:
+        Session: Sesión de SQLAlchemy para operaciones ORM
+    """
     db = DatabaseConnection()
-    return db.get_connection()
+    return db.get_session()
 
+
+# Función antigua mantenida para compatibilidad (deprecated)
+def get_db():
+    """
+    Retorna una sesión de SQLAlchemy (deprecated)
+    
+    Esta función se mantiene para compatibilidad con código antiguo
+    Se recomienda usar get_session() en su lugar
+    
+    Returns:
+        Session: Sesión de SQLAlchemy
+    """
+    return get_session()

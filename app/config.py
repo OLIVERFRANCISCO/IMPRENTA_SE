@@ -19,6 +19,8 @@ COLOR_WARNING = "#f39c12"
 COLOR_DANGER = "#e74c3c"
 COLOR_BG_DARK = "#2b2b2b"
 COLOR_BG_LIGHT = "#f0f0f0"
+COLOR_TEXT = "#ffffff"
+COLOR_TEXT_DARK = "#000000"
 
 # Tamaños de ventana
 WINDOW_WIDTH = 1200
@@ -86,6 +88,16 @@ TIPOS_MAQUINA = {
 ANCHO_MAXIMO_IMPRESORA_PEQUENA = 0.45
 ANCHO_MAXIMO_PLOTTER = 1.60
 LARGO_MAXIMO = 50
+
+# Configuración de máquinas
+ANCHO_MAXIMO_MAQUINA = 2.5  # metros para gigantografías
+
+# Horarios de entrega permitidos
+HORA_ENTREGA_MINIMA = 8  # 8:00 AM
+HORA_ENTREGA_MAXIMA = 20  # 8:00 PM
+
+# Horas mínimas de anticipación para pedidos
+HORAS_MINIMAS_ANTICIPACION = 24
 
 # ========== MENSAJES ==========
 MSG_ERROR_CONEXION_DB = "Error al conectar con la base de datos"

@@ -1,9 +1,31 @@
 """
-Capa de acceso a datos
-Maneja la conexión y operaciones con SQLite
+Capa de acceso a datos con SQLAlchemy ORM
+Maneja la conexión y operaciones con SQLite usando modelos ORM
 """
 
-from .conexion import get_db, DatabaseConnection
+from .conexion import DatabaseConnection, get_session, get_db
+from .models import (
+    Base, Cliente, Maquina, Material, EstadoPedido, 
+    Servicio, Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial,
+    Usuario, Rol, Permiso
+)
 
-__all__ = ['get_db', 'DatabaseConnection']
+__all__ = [
+    'DatabaseConnection',
+    'get_session',
+    'get_db',
+    'Base',
+    'Cliente',
+    'Maquina',
+    'Material',
+    'EstadoPedido',
+    'Servicio',
+    'Pedido',
+    'DetallePedido',
+    'ConsumoMaterial',
+    'ServicioMaterial',
+    'Usuario',
+    'Rol',
+    'Permiso'
+]
 

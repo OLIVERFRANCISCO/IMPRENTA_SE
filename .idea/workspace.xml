@@ -6,26 +6,21 @@
   <component name="ChangeListManager">
     <list default="true" id="2cf5dfb0-03bb-4778-851c-e361ed696557" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CORRECCION_ERROR_IMPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_DEV.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ESTADO_FINAL.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/RESUMEN_CAMBIOS_67-78.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_USER.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/RESUMEN_NUEVAS_FUNCIONALIDADES.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/database/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/database/conexion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/conexion.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/database/consultas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/consultas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/logic/cola_produccion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/cola_produccion.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/logic/exportacion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/exportacion.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/logic/calculos.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/calculos.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/logic/reglas_experto.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/reglas_experto.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/main_window.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/main_window.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/panel_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_clientes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/panel_inventario.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_inventario.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_maquinas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_maquinas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_reportes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_reportes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui/panel_servicios.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_servicios.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/widgets.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/widgets.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fix_tkinter.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,6 +30,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;OLIVERFRANCISCO&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/OLIVERFRANCISCO/IMPRENTA_SE.git&quot;,
+    &quot;accountId&quot;: &quot;530a6c96-69ba-4b4b-8747-bf924c22847b&quot;
+  }
+}</component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/app/database/conexion.py" root0="SKIP_INSPECTION" />
   </component>
@@ -49,18 +56,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.panel_inventario.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "settings.editor.selected.configurable": "preferences.pluginManager"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.panel_inventario.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -84,12 +91,21 @@
       <option name="project" value="LOCAL" />
       <updated>1764459607976</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="tercer commit">
+      <option name="closed" value="true" />
+      <created>1764599688674</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1764599688674</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="primera version" />
-    <option name="LAST_COMMIT_MESSAGE" value="primera version" />
+    <MESSAGE value="tercer commit" />
+    <option name="LAST_COMMIT_MESSAGE" value="tercer commit" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

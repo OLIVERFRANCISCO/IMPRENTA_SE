@@ -72,7 +72,7 @@ executables = [
 # ========== SETUP ==========
 setup(
     name="Sistema Imprenta Expert",
-    version="1.0.0",
+    version="1.5.1",
     description="Sistema Experto de Gestión para Imprenta",
     author="Oliver",
     options={

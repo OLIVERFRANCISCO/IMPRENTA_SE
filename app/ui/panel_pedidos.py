@@ -1,333 +1,737 @@
 """
-Panel de gestión de pedidos
-Permite crear cotizaciones y gestionar pedidos
+Panel de gestión de pedidos mejorado
+Permite crear cotizaciones y gestionar pedidos con interfaz visual mejorada
 """
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from datetime import datetime, timedelta
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+import io
+
 from app.config import *
 from app.database import consultas
 from app.logic import calculos, reglas_experto
 from app.ui.widgets import AutocompleteEntry
 
 
+class IconoSVG:
+    """Clase helper para crear iconos SVG simples como texto Unicode"""
+    USUARIO = "👤"
+    SERVICIO = "📦"
+    MATERIAL = "🎨"
+    DIMENSION = "📏"
+    CANTIDAD = "🔢"
+    PRECIO = "💰"
+    GUARDAR = "💾"
+    LIMPIAR = "🔄"
+    CALCULAR = "🧮"
+    ROLLO = "🎯"
+    RECOMENDACION = "💡"
+    EXITO = "✓"
+    ERROR = "✗"
+    ALERTA = "⚠"
+    PDF = "📄"
+
+
 class PanelPedidos(ctk.CTkFrame):
-    """Panel para crear y gestionar pedidos"""
+    """Panel principal para gestión de pedidos con diseño mejorado"""
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
 
+        # Configuración de la grilla principal
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # Título
-        self.titulo = ctk.CTkLabel(
-            self,
-            text="Gestión de Pedidos",
-            font=ctk.CTkFont(size=32, weight="bold")
-        )
-        self.titulo.grid(row=0, column=0, pady=(0, 20), sticky="w")
+        # Variables de estado
+        self.servicio_actual = None
+        self.rollo_seleccionado = None
 
-        # Contenedor con scroll
+        self._crear_encabezado()
+        self._crear_contenedor_principal()
+        self._crear_formulario()
+
+    # ==================== CONSTRUCCIÓN DE UI ====================
+
+    def _crear_encabezado(self):
+        """Crea el encabezado del panel con título y botones de acción"""
+        frame_header = ctk.CTkFrame(self, fg_color="transparent")
+        frame_header.grid(row=0, column=0, pady=(0, 20), padx=10, sticky="ew")
+        frame_header.grid_columnconfigure(1, weight=1)
+
+        # Título con icono
+        titulo = ctk.CTkLabel(
+            frame_header,
+            text=f"{IconoSVG.SERVICIO} Gestión de Pedidos",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color=COLOR_PRIMARY
+        )
+        titulo.grid(row=0, column=0, sticky="w")
+
+        # Botón exportar PDF
+        # self.btn_exportar = ctk.CTkButton(
+        #     frame_header,
+        #     text=f"{IconoSVG.PDF} Exportar PDF",
+        #     command=self._exportar_cotizacion_pdf,
+        #     height=40,
+        #     width=150,
+        #     fg_color=COLOR_WARNING,
+        #     hover_color="#d97706"
+        # )
+        # self.btn_exportar.grid(row=0, column=2, padx=5)
+
+    def _crear_contenedor_principal(self):
+        """Crea el contenedor scrollable principal"""
         self.scroll_frame = ctk.CTkScrollableFrame(self)
         self.scroll_frame.grid(row=1, column=0, sticky="nsew")
         self.scroll_frame.grid_columnconfigure(0, weight=1)
 
-        self._crear_formulario()
-
     def _crear_formulario(self):
-        """Crea el formulario de nuevo pedido"""
+        """Crea el formulario completo organizado en secciones"""
+        self._crear_seccion_cliente()
+        self._crear_seccion_servicio()
+        self._crear_seccion_dimensiones()
+        self._crear_seccion_rollo_automatico()
+        self._crear_seccion_recomendaciones()
+        self._crear_seccion_costos()
+        self._crear_botones_accion()
 
-        # ===== SECCIÓN 1: DATOS DEL CLIENTE =====
-        frame_cliente = ctk.CTkFrame(self.scroll_frame)
-        frame_cliente.grid(row=0, column=0, pady=10, padx=10, sticky="ew")
-        frame_cliente.grid_columnconfigure(1, weight=1)
+    def _crear_seccion_cliente(self):
+        """Sección: Datos del Cliente"""
+        frame = self._crear_frame_seccion(0, f"{IconoSVG.USUARIO} Datos del Cliente")
 
-        ctk.CTkLabel(
-            frame_cliente,
-            text="Datos del Cliente",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=0, column=0, columnspan=2, pady=10, sticky="w", padx=15)
-
-        # Selector de cliente con autocompletado
-        ctk.CTkLabel(frame_cliente, text="Cliente:").grid(row=1, column=0, padx=15, pady=5, sticky="w")
-        self.autocomplete_cliente = AutocompleteEntry(
-            frame_cliente,
-            width=300
-        )
-        self.autocomplete_cliente.grid(row=1, column=1, padx=15, pady=5, sticky="w")
+        # Cliente con autocompletado
+        self._crear_campo_label(frame, "Cliente:", 1, 0)
+        self.autocomplete_cliente = AutocompleteEntry(frame, width=350)
+        self.autocomplete_cliente.grid(row=1, column=1, padx=15, pady=8, sticky="w")
 
         # Botón nuevo cliente
         self.btn_nuevo_cliente = ctk.CTkButton(
-            frame_cliente,
-            text="+ Nuevo Cliente",
+            frame,
+            text=f"{IconoSVG.EXITO} Nuevo Cliente",
             command=self._mostrar_dialogo_cliente,
-            width=150,
-            fg_color=COLOR_SUCCESS
+            width=160,
+            height=36,
+            fg_color=COLOR_SUCCESS,
+            hover_color="#059669",
+            corner_radius=8
         )
-        self.btn_nuevo_cliente.grid(row=1, column=2, padx=10, pady=5)
+        self.btn_nuevo_cliente.grid(row=1, column=2, padx=10, pady=8)
 
-        # ===== SECCIÓN 2: DATOS DEL SERVICIO =====
-        frame_servicio = ctk.CTkFrame(self.scroll_frame)
-        frame_servicio.grid(row=1, column=0, pady=10, padx=10, sticky="ew")
-        frame_servicio.grid_columnconfigure(1, weight=1)
+    def _crear_seccion_servicio(self):
+        """Sección: Detalles del Servicio"""
+        frame = self._crear_frame_seccion(1, f"{IconoSVG.SERVICIO} Detalles del Servicio")
 
-        ctk.CTkLabel(
-            frame_servicio,
-            text="Detalles del Servicio",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=0, column=0, columnspan=3, pady=10, sticky="w", padx=15)
-
-        # Tipo de servicio
-        ctk.CTkLabel(frame_servicio, text="Servicio:").grid(row=1, column=0, padx=15, pady=5, sticky="w")
+        # Servicio
+        self._crear_campo_label(frame, "Servicio:", 1, 0)
         self.combo_servicio = ctk.CTkComboBox(
-            frame_servicio,
+            frame,
             values=self._obtener_nombres_servicios(),
-            width=300,
-            command=self._al_seleccionar_servicio
+            width=350,
+            height=36,
+            command=self._al_seleccionar_servicio,
+            corner_radius=8
         )
-        self.combo_servicio.grid(row=1, column=1, padx=15, pady=5, sticky="w")
+        self.combo_servicio.grid(row=1, column=1, padx=15, pady=8, sticky="w")
         self.combo_servicio.set("Seleccionar servicio...")
 
-        # Material
-        ctk.CTkLabel(frame_servicio, text="Material:").grid(row=2, column=0, padx=15, pady=5, sticky="w")
+        # Material (con referencias para ocultar/mostrar)
+        self.label_material = self._crear_campo_label(frame, f"{IconoSVG.MATERIAL} Material:", 2, 0)
         self.combo_material = ctk.CTkComboBox(
-            frame_servicio,
+            frame,
             values=self._obtener_nombres_materiales(),
-            width=300
+            width=350,
+            height=36,
+            command=self._al_cambiar_material,
+            corner_radius=8
         )
-        self.combo_material.grid(row=2, column=1, padx=15, pady=5, sticky="w")
+        self.combo_material.grid(row=2, column=1, padx=15, pady=8, sticky="w")
 
         # Descripción
-        ctk.CTkLabel(frame_servicio, text="Descripción:").grid(row=3, column=0, padx=15, pady=5, sticky="w")
-        self.entry_descripcion = ctk.CTkEntry(frame_servicio, width=400, placeholder_text="Detalles del trabajo...")
-        self.entry_descripcion.grid(row=3, column=1, padx=15, pady=5, sticky="w")
+        self.label_descripcion = self._crear_campo_label(frame, "Descripción:", 3, 0)
+        self.entry_descripcion = ctk.CTkEntry(
+            frame,
+            width=500,
+            height=36,
+            placeholder_text="Detalles del trabajo...",
+            corner_radius=8
+        )
+        self.entry_descripcion.grid(row=3, column=1, columnspan=2, padx=15, pady=8, sticky="w")
 
-        # ===== SECCIÓN 3: DIMENSIONES Y CANTIDAD =====
-        frame_dimensiones = ctk.CTkFrame(self.scroll_frame)
-        frame_dimensiones.grid(row=2, column=0, pady=10, padx=10, sticky="ew")
+    def _crear_seccion_dimensiones(self):
+        """Sección: Dimensiones y Cantidad"""
+        frame = self._crear_frame_seccion(2, f"{IconoSVG.DIMENSION} Dimensiones y Cantidad")
 
-        ctk.CTkLabel(
-            frame_dimensiones,
-            text="Dimensiones y Cantidad",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=0, column=0, columnspan=4, pady=10, sticky="w", padx=15)
+        # Contenedor para campos en fila
+        frame_campos = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_campos.grid(row=1, column=0, columnspan=3, padx=15, pady=10, sticky="ew")
 
         # Ancho
-        ctk.CTkLabel(frame_dimensiones, text="Ancho (m):").grid(row=1, column=0, padx=15, pady=5, sticky="w")
-        self.entry_ancho = ctk.CTkEntry(frame_dimensiones, width=120, placeholder_text="0.00")
-        self.entry_ancho.grid(row=1, column=1, padx=5, pady=5)
-        self.entry_ancho.bind("<KeyRelease>", self._al_cambiar_dimensiones)
+        self.label_ancho = ctk.CTkLabel(frame_campos, text="Ancho (m):", font=ctk.CTkFont(size=13))
+        self.label_ancho.grid(row=0, column=0, padx=(0, 10), sticky="w")
+        self.entry_ancho = ctk.CTkEntry(frame_campos, width=120, height=36, placeholder_text="0.00", corner_radius=8)
+        self.entry_ancho.grid(row=0, column=1, padx=(0, 20))
+        self.entry_ancho.bind("<KeyRelease>", self._validar_ancho_tiempo_real)
 
         # Alto
-        ctk.CTkLabel(frame_dimensiones, text="Alto (m):").grid(row=1, column=2, padx=15, pady=5, sticky="w")
-        self.entry_alto = ctk.CTkEntry(frame_dimensiones, width=120, placeholder_text="0.00")
-        self.entry_alto.grid(row=1, column=3, padx=5, pady=5)
+        self.label_alto = ctk.CTkLabel(frame_campos, text="Alto (m):", font=ctk.CTkFont(size=13))
+        self.label_alto.grid(row=0, column=2, padx=(0, 10), sticky="w")
+        self.entry_alto = ctk.CTkEntry(frame_campos, width=120, height=36, placeholder_text="0.00", corner_radius=8)
+        self.entry_alto.grid(row=0, column=3, padx=(0, 20))
         self.entry_alto.bind("<KeyRelease>", self._al_cambiar_dimensiones)
 
         # Cantidad
-        ctk.CTkLabel(frame_dimensiones, text="Cantidad:").grid(row=2, column=0, padx=15, pady=5, sticky="w")
-        self.entry_cantidad = ctk.CTkEntry(frame_dimensiones, width=120, placeholder_text="1")
+        self.label_cantidad = ctk.CTkLabel(frame_campos, text=f"{IconoSVG.CANTIDAD} Cantidad:", font=ctk.CTkFont(size=13))
+        self.label_cantidad.grid(row=0, column=4, padx=(0, 10), sticky="w")
+        self.entry_cantidad = ctk.CTkEntry(frame_campos, width=120, height=36, placeholder_text="1", corner_radius=8)
         self.entry_cantidad.insert(0, "1")
-        self.entry_cantidad.grid(row=2, column=1, padx=5, pady=5)
-        self.entry_cantidad.bind("<KeyRelease>", self._al_cambiar_dimensiones)
+        self.entry_cantidad.grid(row=0, column=5)
+        self.entry_cantidad.bind("<KeyRelease>", self._al_cambiar_cantidad)
 
-        # Área calculada
+        # Área calculada y Precio unitario
+        frame_info = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_info.grid(row=2, column=0, columnspan=3, padx=15, pady=10, sticky="ew")
+
         self.label_area = ctk.CTkLabel(
-            frame_dimensiones,
+            frame_info,
             text="Área: 0.00 m²",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=COLOR_PRIMARY
         )
-        self.label_area.grid(row=2, column=2, columnspan=2, padx=15, pady=5, sticky="w")
+        self.label_area.grid(row=0, column=0, padx=(0, 30), sticky="w")
 
-        # ===== SECCIÓN 4: RECOMENDACIONES DEL SISTEMA EXPERTO =====
-        self.frame_recomendaciones = ctk.CTkFrame(self.scroll_frame, fg_color=COLOR_PRIMARY)
-        self.frame_recomendaciones.grid(row=3, column=0, pady=10, padx=10, sticky="ew")
+        ctk.CTkLabel(frame_info, text=f"{IconoSVG.PRECIO} Precio Unitario:", font=ctk.CTkFont(size=13)).grid(row=0, column=1, padx=(0, 10), sticky="w")
+        self.entry_precio_unitario = ctk.CTkEntry(frame_info, width=140, height=36, placeholder_text="0.00", corner_radius=8)
+        self.entry_precio_unitario.grid(row=0, column=2)
+        self.entry_precio_unitario.bind("<KeyRelease>", self._al_cambiar_precio)
 
-        ctk.CTkLabel(
-            self.frame_recomendaciones,
-            text="Recomendaciones del Sistema Experto",
-            font=ctk.CTkFont(size=18, weight="bold"),
+    def _crear_seccion_rollo_automatico(self):
+        """Sección: Selección Automática de Rollo"""
+        self.frame_rollo_info = ctk.CTkFrame(self.scroll_frame, fg_color="#1a472a", corner_radius=12)
+        self.frame_rollo_info.grid(row=3, column=0, pady=15, padx=10, sticky="ew")
+
+        # Título
+        titulo_rollo = ctk.CTkLabel(
+            self.frame_rollo_info,
+            text=f"{IconoSVG.ROLLO} Rollo Seleccionado Automáticamente",
+            font=ctk.CTkFont(size=16, weight="bold"),
             text_color="white"
-        ).grid(row=0, column=0, pady=10, sticky="w", padx=15)
+        )
+        titulo_rollo.grid(row=0, column=0, pady=(15, 10), padx=20, sticky="w")
 
-        self.label_recomendaciones = ctk.CTkLabel(
-            self.frame_recomendaciones,
-            text="Complete los datos para obtener recomendaciones...",
+        # Contenido
+        self.label_rollo_seleccionado = ctk.CTkLabel(
+            self.frame_rollo_info,
+            text="Ingrese dimensiones y seleccione material para ver recomendación...",
             font=ctk.CTkFont(size=12),
             text_color="white",
+            wraplength=750,
             justify="left"
         )
-        self.label_recomendaciones.grid(row=1, column=0, pady=10, padx=15, sticky="w")
+        self.label_rollo_seleccionado.grid(row=1, column=0, pady=(0, 15), padx=20, sticky="w")
 
-        # ===== SECCIÓN 5: COSTOS =====
-        frame_costos = ctk.CTkFrame(self.scroll_frame)
-        frame_costos.grid(row=4, column=0, pady=10, padx=10, sticky="ew")
+        # Ocultar inicialmente
+        self.frame_rollo_info.grid_remove()
 
-        ctk.CTkLabel(
-            frame_costos,
-            text="Cotización",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=0, column=0, columnspan=2, pady=10, sticky="w", padx=15)
+    def _crear_seccion_recomendaciones(self):
+        """Sección: Recomendaciones del Sistema Experto"""
+        frame = ctk.CTkFrame(self.scroll_frame, fg_color=COLOR_PRIMARY, corner_radius=12)
+        frame.grid(row=4, column=0, pady=15, padx=10, sticky="ew")
 
-        # Precio calculado
+        # Título
+        titulo = ctk.CTkLabel(
+            frame,
+            text=f"{IconoSVG.RECOMENDACION} Recomendaciones del Sistema Experto",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="white"
+        )
+        titulo.grid(row=0, column=0, pady=(15, 10), padx=20, sticky="w")
+
+        # Contenido scrollable
+        self.label_recomendaciones = ctk.CTkTextbox(
+            frame,
+            width=750,
+            height=200,
+            font=ctk.CTkFont(size=12),
+            fg_color="#2d3748",
+            corner_radius=8,
+            wrap="word"
+        )
+        self.label_recomendaciones.grid(row=1, column=0, pady=(0, 15), padx=20, sticky="ew")
+        self.label_recomendaciones.insert("1.0", "Complete los datos para obtener recomendaciones...")
+        self.label_recomendaciones.configure(state="disabled")
+
+    def _crear_seccion_costos(self):
+        """Sección: Cotización y Costos"""
+        frame = self._crear_frame_seccion(5, f"{IconoSVG.PRECIO} Cotización")
+
+        # Precio total destacado
         self.label_precio = ctk.CTkLabel(
-            frame_costos,
+            frame,
             text="Precio Total: S/ 0.00",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ctk.CTkFont(size=28, weight="bold"),
             text_color=COLOR_SUCCESS
         )
-        self.label_precio.grid(row=1, column=0, columnspan=2, pady=10, padx=15, sticky="w")
+        self.label_precio.grid(row=1, column=0, columnspan=2, pady=15, padx=15, sticky="w")
 
-        # Adelanto
-        ctk.CTkLabel(frame_costos, text="Adelanto:").grid(row=2, column=0, padx=15, pady=5, sticky="w")
-        self.entry_adelanto = ctk.CTkEntry(frame_costos, width=150, placeholder_text="0.00")
+        # Adelanto y Estado de pago
+        frame_pago = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_pago.grid(row=2, column=0, columnspan=2, padx=15, pady=10, sticky="ew")
+
+        self._crear_campo_label(frame_pago, "Adelanto (S/):", 0, 0)
+        self.entry_adelanto = ctk.CTkEntry(frame_pago, width=150, height=36, placeholder_text="0.00", corner_radius=8)
         self.entry_adelanto.insert(0, "0")
-        self.entry_adelanto.grid(row=2, column=1, padx=15, pady=5, sticky="w")
+        self.entry_adelanto.grid(row=0, column=1, padx=(10, 30), sticky="w")
 
-        # Estado de pago
-        ctk.CTkLabel(frame_costos, text="Estado de pago:").grid(row=3, column=0, padx=15, pady=5, sticky="w")
+        self._crear_campo_label(frame_pago, "Estado de Pago:", 0, 2)
         self.combo_estado_pago = ctk.CTkComboBox(
-            frame_costos,
+            frame_pago,
             values=ESTADOS_PAGO,
-            width=200
+            width=200,
+            height=36,
+            corner_radius=8
         )
-        self.combo_estado_pago.grid(row=3, column=1, padx=15, pady=5, sticky="w")
+        self.combo_estado_pago.grid(row=0, column=3, padx=10, sticky="w")
         self.combo_estado_pago.set("Pendiente")
 
-        # ===== BOTONES DE ACCIÓN =====
+    def _crear_botones_accion(self):
+        """Crea los botones de acción principales"""
         frame_botones = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        frame_botones.grid(row=5, column=0, pady=20, padx=10, sticky="ew")
+        frame_botones.grid(row=6, column=0, pady=30, padx=10, sticky="ew")
 
+        # Botón Calcular
         self.btn_calcular = ctk.CTkButton(
             frame_botones,
-            text="Calcular Cotización",
+            text=f"{IconoSVG.CALCULAR} Calcular Cotización",
             command=self._calcular_cotizacion,
             height=50,
+            width=260,
             font=ctk.CTkFont(size=16, weight="bold"),
             fg_color=COLOR_PRIMARY,
-            width=250
+            hover_color="#2563eb",
+            corner_radius=10
         )
         self.btn_calcular.pack(side="left", padx=10)
 
+        # Botón Guardar
         self.btn_guardar = ctk.CTkButton(
             frame_botones,
-            text="Guardar Pedido",
+            text=f"{IconoSVG.GUARDAR} Guardar Pedido",
             command=self._guardar_pedido,
             height=50,
+            width=260,
             font=ctk.CTkFont(size=16, weight="bold"),
             fg_color=COLOR_SUCCESS,
-            width=250
+            hover_color="#059669",
+            corner_radius=10
         )
         self.btn_guardar.pack(side="left", padx=10)
 
+        # Botón Limpiar
         self.btn_limpiar = ctk.CTkButton(
             frame_botones,
-            text="Limpiar",
+            text=f"{IconoSVG.LIMPIAR} Limpiar",
             command=self._limpiar_formulario,
             height=50,
+            width=160,
             font=ctk.CTkFont(size=16),
             fg_color="gray",
-            width=150
+            hover_color="#6b7280",
+            corner_radius=10
         )
         self.btn_limpiar.pack(side="left", padx=10)
 
+    # ==================== HELPERS DE UI ====================
+
+    def _crear_frame_seccion(self, row, titulo):
+        """Crea un frame de sección con título"""
+        frame = ctk.CTkFrame(self.scroll_frame, corner_radius=12)
+        frame.grid(row=row, column=0, pady=12, padx=10, sticky="ew")
+        frame.grid_columnconfigure(1, weight=1)
+
+        # Título de sección
+        ctk.CTkLabel(
+            frame,
+            text=titulo,
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).grid(row=0, column=0, columnspan=3, pady=(15, 10), sticky="w", padx=20)
+
+        return frame
+
+    def _crear_campo_label(self, parent, texto, row, col):
+        """Crea una etiqueta de campo estilizada"""
+        label = ctk.CTkLabel(
+            parent,
+            text=texto,
+            font=ctk.CTkFont(size=13)
+        )
+        label.grid(row=row, column=col, padx=15, pady=8, sticky="w")
+        return label
+
+    # ==================== OBTENCIÓN DE DATOS ====================
+
     def _obtener_nombres_clientes(self):
-        """Obtiene los nombres de los clientes para el combobox"""
-        clientes = consultas.obtener_clientes()
-        return [f"{c['nombre_completo']}" for c in clientes]
+        """Obtiene nombres de clientes desde la base de datos"""
+        return [c['nombre_completo'] for c in consultas.obtener_clientes()]
 
     def _obtener_nombres_servicios(self):
-        """Obtiene los nombres de los servicios"""
-        servicios = consultas.obtener_servicios()
-        return [s['nombre_servicio'] for s in servicios]
+        """Obtiene nombres de servicios desde la base de datos"""
+        return [s['nombre_servicio'] for s in consultas.obtener_servicios()]
 
     def _obtener_nombres_materiales(self):
-        """Obtiene los nombres de los materiales"""
-        materiales = consultas.obtener_materiales()
-        return [m['nombre_material'] for m in materiales]
+        """Obtiene nombres de materiales desde la base de datos"""
+        return [m['nombre_material'] for m in consultas.obtener_materiales()]
+
+    # ==================== DIÁLOGOS ====================
 
     def _mostrar_dialogo_cliente(self):
-        """Muestra diálogo para agregar nuevo cliente"""
-        dialogo = ctk.CTkInputDialog(
-            text="Ingrese el nombre completo del cliente:",
-            title="Nuevo Cliente"
-        )
-        nombre = dialogo.get_input()
+        """Muestra diálogo modal para registro rápido de cliente"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Registro Rápido de Cliente")
+        dialogo.geometry("480x320")
+        dialogo.resizable(False, False)
+        dialogo.transient(self)
+        dialogo.grab_set()
 
-        if nombre:
-            id_cliente = consultas.guardar_cliente(nombre)
-            messagebox.showinfo("Éxito", f"Cliente '{nombre}' registrado correctamente")
-            # Actualizar el entry con el nuevo cliente
-            self.autocomplete_cliente.entry.delete(0, "end")
-            self.autocomplete_cliente.entry.insert(0, nombre)
-            # Cargar el cliente recién creado
-            cliente = consultas.obtener_cliente_por_id(id_cliente)
-            self.autocomplete_cliente.cliente_seleccionado = cliente
+        # Contenedor principal
+        frame = ctk.CTkFrame(dialogo, corner_radius=15)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Título
+        ctk.CTkLabel(
+            frame,
+            text=f"{IconoSVG.USUARIO} Nuevo Cliente",
+            font=ctk.CTkFont(size=22, weight="bold")
+        ).pack(pady=(15, 25))
+
+        # Campo Nombre
+        ctk.CTkLabel(frame, text="Nombre Completo *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=30)
+        entry_nombre = ctk.CTkEntry(frame, width=400, height=40, placeholder_text="Ingrese nombre completo", corner_radius=8)
+        entry_nombre.pack(padx=30, pady=(5, 15))
+        entry_nombre.focus()
+
+        # Campo Celular
+        ctk.CTkLabel(frame, text="Número de Celular *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=30)
+        entry_celular = ctk.CTkEntry(frame, width=400, height=40, placeholder_text="Mínimo 9 dígitos", corner_radius=8)
+        entry_celular.pack(padx=30, pady=(5, 15))
+
+        # Label de error
+        label_error = ctk.CTkLabel(frame, text="", text_color=COLOR_DANGER, font=ctk.CTkFont(size=11))
+        label_error.pack(pady=(0, 10))
+
+        def guardar():
+            """Valida y guarda el cliente"""
+            nombre = entry_nombre.get().strip()
+            celular = entry_celular.get().strip()
+
+            if not nombre:
+                label_error.configure(text=f"{IconoSVG.ERROR} El nombre es obligatorio")
+                return
+
+            if not celular or len(celular) < 9:
+                label_error.configure(text=f"{IconoSVG.ERROR} El celular debe tener al menos 9 dígitos")
+                return
+
+            try:
+                id_cliente = consultas.guardar_cliente(nombre, celular)
+                if id_cliente:
+                    dialogo.destroy()
+                    self.autocomplete_cliente.entry.delete(0, "end")
+                    self.autocomplete_cliente.entry.insert(0, nombre)
+                    cliente = consultas.obtener_cliente_por_id(id_cliente)
+                    self.autocomplete_cliente.cliente_seleccionado = cliente
+                    messagebox.showinfo("Éxito", f"{IconoSVG.EXITO} Cliente '{nombre}' registrado correctamente")
+            except Exception as e:
+                label_error.configure(text=f"{IconoSVG.ERROR} Error: {str(e)}")
+
+        # Botones
+        frame_btn = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_btn.pack(pady=15)
+
+        ctk.CTkButton(
+            frame_btn, text=f"{IconoSVG.EXITO} Guardar", command=guardar,
+            width=180, height=40, fg_color=COLOR_SUCCESS, corner_radius=8
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            frame_btn, text=f"{IconoSVG.ERROR} Cancelar", command=dialogo.destroy,
+            width=120, height=40, fg_color="gray", corner_radius=8
+        ).pack(side="left", padx=5)
+
+        entry_celular.bind("<Return>", lambda e: guardar())
+
+    # ==================== EVENTOS Y LÓGICA ====================
 
     def _al_seleccionar_servicio(self, choice):
-        """Se ejecuta al seleccionar un servicio"""
+        """Maneja la selección de servicio y aplica lógica adaptativa"""
         if choice == "Seleccionar servicio...":
             return
 
-        # Obtener ID del servicio seleccionado
-        servicios = consultas.obtener_servicios()
-        id_servicio = None
-        for servicio in servicios:
+        # Buscar y almacenar servicio actual
+        for servicio in consultas.obtener_servicios():
             if servicio['nombre_servicio'] == choice:
-                id_servicio = servicio['id_servicio']
+                self.servicio_actual = servicio
                 break
 
-        if id_servicio:
-            # Filtrar materiales compatibles con este servicio
-            materiales_filtrados = consultas.obtener_materiales_por_servicio(id_servicio)
-
-            if materiales_filtrados:
-                nombres_materiales = [mat['nombre_material'] for mat in materiales_filtrados]
-                self.combo_material.configure(values=nombres_materiales)
-                if nombres_materiales:
-                    self.combo_material.set(nombres_materiales[0])
+        # Filtrar materiales compatibles
+        if self.servicio_actual:
+            materiales = consultas.obtener_materiales_por_servicio(self.servicio_actual['id_servicio'])
+            if materiales:
+                self.combo_material.configure(values=[m['nombre_material'] for m in materiales])
+                self.combo_material.set(materiales[0]['nombre_material'])
             else:
-                # Si no hay materiales específicos, mostrar todos
                 self.combo_material.configure(values=self._obtener_nombres_materiales())
-                messagebox.showinfo("Información",
-                    f"No hay materiales específicos configurados para {choice}.\nSe muestran todos los materiales disponibles.")
+
+        self._aplicar_logica_servicio(choice)
+
+    def _aplicar_logica_servicio(self, nombre_servicio):
+        """RQ-03, RQ-08: Aplica reglas de UI según tipo de servicio y unidad de medida"""
+        nombre_lower = nombre_servicio.lower()
+
+        # RQ-03: Determinar si mostrar dimensiones según unidad de medida del servicio
+        unidades_espaciales = ['m', 'cm', 'm2', 'cm2']
+        mostrar_dimensiones = False
+
+        if self.servicio_actual:
+            # Acceso seguro a la unidad de cobro del servicio
+            unidad_cobro = self.servicio_actual.get('unidad_cobro', '') if isinstance(self.servicio_actual, dict) else ''
+            if unidad_cobro:
+                unidad_cobro = unidad_cobro.strip().lower()
+                # RQ-03: Mostrar solo si la unidad coincide exactamente con unidades espaciales
+                mostrar_dimensiones = unidad_cobro in unidades_espaciales
+
+        # RQ-02: Mostrar/ocultar panel de dimensiones dinámicamente
+        widgets_dimension = [self.label_ancho, self.entry_ancho, self.label_alto, self.entry_alto, self.label_area]
+        for widget in widgets_dimension:
+            if mostrar_dimensiones:
+                widget.grid()
+            else:
+                widget.grid_remove()
+
+        # Lógica especial para llaveros
+        es_llavero = "llavero" in nombre_lower
+        if es_llavero:
+            self.label_material.grid_remove()
+            self.combo_material.grid_remove()
+            self.label_descripcion.configure(text="Descripción *", text_color=COLOR_DANGER)
+            self.entry_descripcion.configure(placeholder_text="Obligatorio: Especifique características")
+        else:
+            self.label_material.grid()
+            self.combo_material.grid()
+            self.label_descripcion.configure(text="Descripción:", text_color="white")
+            self.entry_descripcion.configure(placeholder_text="Detalles del trabajo...")
+
+        # Aplicar actualización adicional de campos
+        self._actualizar_campos_producto(nombre_servicio)
+
+    def _actualizar_campos_producto(self, nombre_servicio):
+        """Actualiza campos específicos según tipo de producto"""
+        nombre_lower = nombre_servicio.lower()
+
+        # Flyers/Tarjetas: cambiar a "Millares"
+        if "flyer" in nombre_lower or "tarjeta" in nombre_lower:
+            self.label_cantidad.configure(text=f"{IconoSVG.CANTIDAD} Millares:")
+        else:
+            self.label_cantidad.configure(text=f"{IconoSVG.CANTIDAD} Cantidad:")
+
+        # Tazas: precio automático
+        if "taza" in nombre_lower:
+            self.entry_precio_unitario.configure(state="disabled")
+        else:
+            self.entry_precio_unitario.configure(state="normal")
+
+    def _al_cambiar_material(self, choice):
+        """Maneja cambio de material y selecciona rollo automáticamente"""
+        self._seleccionar_rollo_automaticamente()
+
+    def _al_cambiar_cantidad(self, event=None):
+        """Valida cantidad y calcula precios según reglas de negocio"""
+        servicio = self.combo_servicio.get()
+        if servicio == "Seleccionar servicio...":
+            return
+
+        try:
+            cantidad = int(self.entry_cantidad.get() or 0)
+            if cantidad <= 0:
+                return
+
+            # Validar restricciones para llaveros
+            es_valido, mensaje, cantidad_sugerida = calculos.validar_restricciones_cantidad(servicio, cantidad)
+            if not es_valido:
+                if messagebox.askyesno("Cantidad Inválida", f"{mensaje}\n\n¿Ajustar a {cantidad_sugerida}?"):
+                    self.entry_cantidad.delete(0, "end")
+                    self.entry_cantidad.insert(0, str(cantidad_sugerida))
+                    cantidad = cantidad_sugerida
+
+            # Calcular precio sugerido para tazas
+            precio = calculos.calcular_precio_sugerido(servicio, cantidad)
+            if precio:
+                self.entry_precio_unitario.configure(state="normal")
+                self.entry_precio_unitario.delete(0, "end")
+                self.entry_precio_unitario.insert(0, f"{precio:.2f}")
+                self.entry_precio_unitario.configure(state="disabled")
+
+            self._calcular_total_automatico()
+        except ValueError:
+            pass
+
+    def _al_cambiar_precio(self, event=None):
+        """Recalcula total al cambiar precio unitario"""
+        self._calcular_total_automatico()
+
+    def _calcular_total_automatico(self):
+        """Calcula y muestra el total automáticamente"""
+        try:
+            servicio = self.combo_servicio.get()
+            if servicio == "Seleccionar servicio...":
+                return
+
+            cantidad = float(self.entry_cantidad.get() or 0)
+            precio_unit = float(self.entry_precio_unitario.get() or 0)
+
+            # Convertir millares si aplica
+            if "flyer" in servicio.lower() or "tarjeta" in servicio.lower():
+                cantidad = calculos.convertir_millares_a_unidades(cantidad)
+
+            total = cantidad * precio_unit
+            self.label_precio.configure(text=f"Precio Total: S/ {total:.2f}")
+        except ValueError:
+            pass
+
+    def _validar_ancho_tiempo_real(self, event=None):
+        """Valida ancho y muestra recomendaciones de optimización"""
+        try:
+            servicio = self.combo_servicio.get()
+            if servicio == "Seleccionar servicio...":
+                return
+
+            ancho = float(self.entry_ancho.get() or 0)
+            if ancho <= 0:
+                return
+
+            # Validar optimización
+            requiere_opt, mensaje = calculos.validar_optimizacion_impresion(ancho, servicio, ANCHO_MAXIMO_MAQUINA)
+            if requiere_opt:
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Optimización Recomendada", mensaje)
+
+            self._al_cambiar_dimensiones()
+            self._seleccionar_rollo_automaticamente()
+        except ValueError:
+            pass
 
     def _al_cambiar_dimensiones(self, event=None):
-        """Se ejecuta al escribir en los campos de dimensiones"""
+        """Calcula y muestra el área"""
         try:
             ancho = float(self.entry_ancho.get() or 0)
             alto = float(self.entry_alto.get() or 0)
 
             if ancho > 0 and alto > 0:
                 area = calculos.calcular_area(ancho, alto)
-                self.label_area.configure(text=f"Área: {area} m²")
+                self.label_area.configure(text=f"Área: {area:.2f} m²")
+            else:
+                self.label_area.configure(text="Área: 0.00 m²")
         except ValueError:
             self.label_area.configure(text="Área: 0.00 m²")
 
-    def _calcular_cotizacion(self):
-        """Calcula la cotización y muestra recomendaciones"""
+    def _seleccionar_rollo_automaticamente(self):
+        """Selecciona rollo óptimo según dimensiones y material"""
         try:
-            # Validar datos básicos
+            ancho_str = self.entry_ancho.get()
+            material = self.combo_material.get()
+
+            if not ancho_str or not material:
+                self.frame_rollo_info.grid_remove()
+                return
+
+            ancho = float(ancho_str)
+            materiales_disp = consultas.obtener_materiales_por_tipo_y_ancho(material)
+
+            if not materiales_disp:
+                self.frame_rollo_info.grid_remove()
+                return
+
+            rollo_optimo = calculos.seleccionar_rollo_optimo(ancho, material, materiales_disp)
+
+            if rollo_optimo:
+                self.rollo_seleccionado = rollo_optimo
+                alto = float(self.entry_alto.get() or 0)
+
+                verificacion = calculos.verificar_disponibilidad_lineal(
+                    rollo_optimo['id_material'],
+                    alto,
+                    consultas.obtener_rollo_por_id
+                )
+
+                color = "#1a472a" if verificacion['puede_continuar'] else "#7a1a1a"
+                self.frame_rollo_info.configure(fg_color=color)
+
+                mensaje = (
+                    f"{IconoSVG.EXITO} Material: {rollo_optimo['nombre_material']}\n"
+                    f"{IconoSVG.EXITO} Ancho de rollo: {rollo_optimo['ancho_bobina']:.2f} m\n"
+                    f"{IconoSVG.EXITO} Ancho necesario (con margen): {rollo_optimo['ancho_necesario']:.2f} m\n"
+                    f"{IconoSVG.EXITO} Stock disponible: {rollo_optimo['cantidad_stock']:.2f} m\n\n"
+                    f"{verificacion['mensaje']}"
+                )
+
+                self.label_rollo_seleccionado.configure(text=mensaje)
+                self.frame_rollo_info.grid()
+            else:
+                self.rollo_seleccionado = None
+                self.frame_rollo_info.configure(fg_color="#7a1a1a")
+
+                mensaje = (
+                    f"{IconoSVG.ERROR} No hay rollo disponible\n\n"
+                    f"No existe un rollo de '{material}' suficientemente ancho.\n"
+                    f"Ancho requerido: {ancho + 0.05:.2f} m"
+                )
+
+                self.label_rollo_seleccionado.configure(text=mensaje)
+                self.frame_rollo_info.grid()
+
+        except (ValueError, Exception) as e:
+            self.frame_rollo_info.grid_remove()
+
+    # ==================== ACCIONES PRINCIPALES ====================
+
+    def _calcular_cotizacion(self):
+        """RQ-09: Calcula cotización con validación unificada de dimensiones según unidad de medida"""
+        try:
             if self.combo_servicio.get() == "Seleccionar servicio...":
-                messagebox.showwarning("Validación", "Debe seleccionar un servicio")
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "Debe seleccionar un servicio")
                 return
 
-            ancho = float(self.entry_ancho.get() or 0)
-            alto = float(self.entry_alto.get() or 0)
+            # RQ-01, RQ-04: Verificar si requiere dimensiones según unidad de medida
+            unidades_espaciales = ['m', 'cm', 'm2', 'cm2']
+            requiere_dimensiones = False
+
+            if self.servicio_actual:
+                # Acceso seguro a la unidad de cobro
+                unidad = self.servicio_actual.get('unidad_cobro', '') if isinstance(self.servicio_actual, dict) else ''
+                if unidad:
+                    unidad = unidad.strip().lower()
+                    # RQ-01: Solo requiere dimensiones si la unidad coincide exactamente
+                    requiere_dimensiones = unidad in unidades_espaciales
+
+            # RQ-04: Obtener dimensiones solo si el servicio las requiere
+            if requiere_dimensiones:
+                ancho = float(self.entry_ancho.get() or 0)
+                alto = float(self.entry_alto.get() or 0)
+                # RQ-01: Validar solo cuando las dimensiones son obligatorias
+                if ancho <= 0 or alto <= 0:
+                    messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "El servicio seleccionado requiere dimensiones válidas")
+                    return
+            else:
+                # RQ-04: Ignorar dimensiones completamente para servicios sin unidad espacial
+                ancho, alto = 1.0, 1.0
+
             cantidad = int(self.entry_cantidad.get() or 1)
+            servicio = self.combo_servicio.get()
 
-            if ancho <= 0 or alto <= 0:
-                messagebox.showwarning("Validación", "Debe ingresar dimensiones válidas")
-                return
-
-            # Obtener análisis del sistema experto
-            servicio_nombre = self.combo_servicio.get()
-            cantidad = int(self.entry_cantidad.get() or 1)
-
+            # Análisis del sistema experto
             analisis = reglas_experto.analizar_pedido_completo(
-                tipo_trabajo=servicio_nombre,
+                tipo_trabajo=servicio,
                 ancho=ancho,
                 alto=alto,
                 cantidad=cantidad,
@@ -336,55 +740,49 @@ class PanelPedidos(ctk.CTkFrame):
                 es_urgente=False
             )
 
-            # Mostrar recomendaciones
-            texto_recomendaciones = f"""
-Máquina: {analisis['maquina']['maquina_recomendada']}
-   {analisis['maquina']['explicacion']}
+            # Formatear recomendaciones
+            texto = self._formatear_recomendaciones(analisis)
+            self.label_recomendaciones.configure(state="normal")
+            self.label_recomendaciones.delete("1.0", "end")
+            self.label_recomendaciones.insert("1.0", texto)
+            self.label_recomendaciones.configure(state="disabled")
 
-Materiales recomendados:
-"""
-            for mat in analisis['material']['materiales_recomendados']:
-                texto_recomendaciones += f"   - {mat['nombre']}: {mat['razon']}\n"
-
-            # Información de tiempo y cola
-            texto_recomendaciones += f"\n--- TIEMPO DE ENTREGA ---"
-            texto_recomendaciones += f"\nTiempo de producción: {analisis['tiempo']['horas_estimadas']:.1f} horas"
-            texto_recomendaciones += f"\nDías hábiles: {analisis['tiempo']['dias_habiles']}"
-            texto_recomendaciones += f"\nFecha de entrega: {analisis['tiempo']['fecha_entrega'].strftime('%d/%m/%Y a las %H:%M')}"
-
-            # Estado de la cola
-            info_cola = analisis['tiempo']['info_cola']
-            texto_recomendaciones += f"\n\n--- ESTADO DE PRODUCCIÓN ---"
-            texto_recomendaciones += f"\nPedidos pendientes: {info_cola['pedidos_pendientes']}"
-            texto_recomendaciones += f"\nHoras en cola: {info_cola['horas_en_cola']:.1f}h"
-            texto_recomendaciones += f"\nEstado: {info_cola['estado_produccion']}"
-
-            # Detalles del cálculo
-            texto_recomendaciones += f"\n\n{analisis['tiempo']['detalles_calculo']}"
-
-            # Advertencias
-            if analisis['validacion_metraje']['advertencias']:
-                texto_recomendaciones += "\n\n--- ADVERTENCIAS ---"
-                for adv in analisis['validacion_metraje']['advertencias']:
-                    texto_recomendaciones += f"\n{adv}"
-
-            if analisis['tiempo']['alertas']:
-                for alerta in analisis['tiempo']['alertas']:
-                    texto_recomendaciones += f"\n{alerta}"
-
-            self.label_recomendaciones.configure(text=texto_recomendaciones)
-
-            # Calcular precio
-            area = calculos.calcular_area(ancho, alto)
-            precio_m2 = 25.0  # Precio base por m2
-            precio_total = calculos.calcular_costo_total(area * precio_m2 * cantidad, 0)
+            # Calcular precio según tipo de servicio
+            if requiere_dimensiones:
+                area = calculos.calcular_area(ancho, alto)
+                precio_total = calculos.calcular_costo_total(area * 25.0 * cantidad, 0)
+            else:
+                # Acceso seguro al precio base del servicio
+                precio_base = self.servicio_actual.get('precio_base', 0) if isinstance(self.servicio_actual, dict) else 0
+                precio_total = precio_base * cantidad
 
             self.label_precio.configure(text=f"Precio Total: S/ {precio_total:.2f}")
-
-            messagebox.showinfo("Cotización", "Cotización calculada exitosamente")
+            messagebox.showinfo(f"{IconoSVG.EXITO} Cotización", "Cotización calculada exitosamente")
 
         except ValueError as e:
-            messagebox.showerror("Error", f"Datos inválidos: {str(e)}")
+            messagebox.showerror(f"{IconoSVG.ERROR} Error", f"Datos inválidos: {str(e)}")
+
+    def _formatear_recomendaciones(self, analisis):
+        """Formatea el análisis del sistema experto"""
+        texto = f"{IconoSVG.RECOMENDACION} MÁQUINA RECOMENDADA\n"
+        texto += f"{analisis['maquina']['maquina_recomendada']}\n"
+        texto += f"{analisis['maquina']['explicacion']}\n\n"
+
+        texto += f"{IconoSVG.MATERIAL} MATERIALES SUGERIDOS\n"
+        for mat in analisis['material']['materiales_recomendados']:
+            texto += f"• {mat['nombre']}: {mat['razon']}\n"
+
+        texto += f"\n{IconoSVG.CALCULAR} TIEMPO DE ENTREGA\n"
+        texto += f"Producción: {analisis['tiempo']['horas_estimadas']:.1f} horas\n"
+        texto += f"Días hábiles: {analisis['tiempo']['dias_habiles']}\n"
+        texto += f"Fecha: {analisis['tiempo']['fecha_entrega'].strftime('%d/%m/%Y %H:%M')}\n"
+
+        if analisis['validacion_metraje']['advertencias']:
+            texto += f"\n{IconoSVG.ALERTA} ADVERTENCIAS\n"
+            for adv in analisis['validacion_metraje']['advertencias']:
+                texto += f"• {adv}\n"
+
+        return texto
 
     def _guardar_pedido(self):
         """Guarda el pedido en la base de datos"""
@@ -392,28 +790,43 @@ Materiales recomendados:
             # Validaciones
             cliente = self.autocomplete_cliente.get_cliente_seleccionado()
             if not cliente:
-                messagebox.showwarning("Validación", "Debe seleccionar un cliente de las sugerencias")
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "Debe seleccionar un cliente")
                 return
 
             if self.combo_servicio.get() == "Seleccionar servicio...":
-                messagebox.showwarning("Validación", "Debe seleccionar un servicio")
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "Debe seleccionar un servicio")
                 return
 
-            # Obtener precio del label (quitar el texto "Precio Total: S/ ")
+            # Validar descripción para llaveros
+            if "llavero" in self.combo_servicio.get().lower():
+                if not self.entry_descripcion.get().strip():
+                    messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "La descripción es obligatoria para llaveros")
+                    return
+
+            # Obtener precio
             precio_texto = self.label_precio.cget("text")
             precio_total = float(precio_texto.split("S/ ")[1])
 
             if precio_total == 0:
-                messagebox.showwarning("Validación", "Debe calcular la cotización primero")
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "Debe calcular la cotización primero")
                 return
 
-            # Obtener adelanto
             adelanto = float(self.entry_adelanto.get() or 0)
-
-            # Calcular fecha de entrega (ejemplo: 3 días)
             fecha_entrega = datetime.now() + timedelta(days=3)
 
-            # Guardar pedido
+            # Validar fecha/hora
+            es_valida, msg = calculos.validar_fecha_hora_entrega_completa(
+                fecha_entrega,
+                HORAS_MINIMAS_ANTICIPACION,
+                HORA_ENTREGA_MINIMA,
+                HORA_ENTREGA_MAXIMA
+            )
+
+            if not es_valida:
+                messagebox.showerror(f"{IconoSVG.ERROR} Validación", msg)
+                return
+
+            # Guardar
             id_pedido = consultas.guardar_pedido(
                 id_cliente=cliente['id_cliente'],
                 fecha_entrega=fecha_entrega,
@@ -424,11 +837,11 @@ Materiales recomendados:
                 observaciones=self.entry_descripcion.get()
             )
 
-            messagebox.showinfo("Éxito", f"Pedido #{id_pedido} guardado correctamente")
+            messagebox.showinfo(f"{IconoSVG.EXITO} Éxito", f"Pedido #{id_pedido} guardado correctamente")
             self._limpiar_formulario()
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+            messagebox.showerror(f"{IconoSVG.ERROR} Error", f"Error al guardar: {str(e)}")
 
     def _limpiar_formulario(self):
         """Limpia todos los campos del formulario"""
@@ -444,5 +857,91 @@ Materiales recomendados:
         self.combo_estado_pago.set("Pendiente")
         self.label_area.configure(text="Área: 0.00 m²")
         self.label_precio.configure(text="Precio Total: S/ 0.00")
-        self.label_recomendaciones.configure(text="Complete los datos para obtener recomendaciones...")
+        self.label_recomendaciones.configure(state="normal")
+        self.label_recomendaciones.delete("1.0", "end")
+        self.label_recomendaciones.insert("1.0", "Complete los datos para obtener recomendaciones...")
+        self.label_recomendaciones.configure(state="disabled")
+        self.frame_rollo_info.grid_remove()
+
+    # ==================== EXPORTACIÓN PDF ====================
+
+    def _exportar_cotizacion_pdf(self):
+        """Exporta la cotización actual a PDF"""
+        try:
+            # Validar que haya cotización
+            if "S/ 0.00" in self.label_precio.cget("text"):
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Exportar", "No hay cotización para exportar. Calcule primero.")
+                return
+
+            # Seleccionar archivo
+            archivo = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                initialfile=f"Cotizacion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
+
+            if not archivo:
+                return
+
+            # Crear PDF
+            c = canvas.Canvas(archivo, pagesize=letter)
+            width, height = letter
+
+            # Título
+            c.setFont("Helvetica-Bold", 24)
+            c.drawString(50, height - 50, "COTIZACIÓN")
+
+            # Datos del cliente
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, height - 100, "CLIENTE:")
+            c.setFont("Helvetica", 12)
+            cliente = self.autocomplete_cliente.entry.get()
+            c.drawString(70, height - 120, cliente if cliente else "No especificado")
+
+            # Servicio
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, height - 160, "SERVICIO:")
+            c.setFont("Helvetica", 12)
+            c.drawString(70, height - 180, self.combo_servicio.get())
+
+            # Material
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, height - 220, "MATERIAL:")
+            c.setFont("Helvetica", 12)
+            c.drawString(70, height - 240, self.combo_material.get())
+
+            # Dimensiones
+            ancho = self.entry_ancho.get()
+            alto = self.entry_alto.get()
+            if ancho and alto:
+                c.setFont("Helvetica-Bold", 14)
+                c.drawString(50, height - 280, "DIMENSIONES:")
+                c.setFont("Helvetica", 12)
+                c.drawString(70, height - 300, f"Ancho: {ancho} m  |  Alto: {alto} m")
+
+            # Cantidad
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, height - 340, "CANTIDAD:")
+            c.setFont("Helvetica", 12)
+            c.drawString(70, height - 360, self.entry_cantidad.get())
+
+            # Precio
+            c.setFont("Helvetica-Bold", 18)
+            c.drawString(50, height - 420, "PRECIO TOTAL:")
+            c.setFont("Helvetica-Bold", 24)
+            c.setFillColorRGB(0, 0.6, 0)
+            c.drawString(70, height - 450, self.label_precio.cget("text").replace("Precio Total: ", ""))
+
+            # Footer
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont("Helvetica", 10)
+            c.drawString(50, 50, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+            c.drawString(50, 35, "Sistema de Gestión de Imprenta v2.0")
+
+            c.save()
+
+            messagebox.showinfo(f"{IconoSVG.EXITO} Exportar", f"PDF generado exitosamente:\n{archivo}")
+
+        except Exception as e:
+            messagebox.showerror(f"{IconoSVG.ERROR} Error", f"Error al exportar PDF: {str(e)}")
 
