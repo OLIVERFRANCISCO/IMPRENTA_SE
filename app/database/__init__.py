@@ -7,7 +7,7 @@ from .conexion import DatabaseConnection, get_session, get_db
 from .models import (
     Base, Cliente, Maquina, Material, EstadoPedido, 
     Servicio, Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial,
-    Usuario, Rol, Permiso
+    Usuario, Rol, Permiso, ReglaExperto
 )
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     'ServicioMaterial',
     'Usuario',
     'Rol',
-    'Permiso'
+    'Permiso',
+    'ReglaExperto'
 ]
 

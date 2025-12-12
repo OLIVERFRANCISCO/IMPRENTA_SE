@@ -51,6 +51,15 @@ class PanelAdmin(ctk.CTkFrame):
         self._crear_header()
         self._crear_tabs()
     
+    def _toggle_password(self, entry, button):
+        """Alterna entre mostrar y ocultar contraseña"""
+        if entry.cget("show") == "●":
+            entry.configure(show="")
+            button.configure(text="👁️‍🗨️")
+        else:
+            entry.configure(show="●")
+            button.configure(text="👁️")
+    
     def _mostrar_acceso_denegado(self):
         """Muestra mensaje de acceso denegado"""
         ctk.CTkLabel(
@@ -273,13 +282,35 @@ class PanelAdmin(ctk.CTkFrame):
         
         # Password
         ctk.CTkLabel(frame, text="Contraseña *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=10)
-        entry_password = ctk.CTkEntry(frame, width=380, height=40, placeholder_text="Mínimo 6 caracteres", show="●")
-        entry_password.pack(padx=10, pady=(5, 15))
+        frame_password = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_password.pack(padx=10, pady=(5, 15))
+        entry_password = ctk.CTkEntry(frame_password, width=330, height=40, placeholder_text="Mínimo 6 caracteres", show="●")
+        entry_password.pack(side="left", padx=(0, 5))
+        btn_toggle_password = ctk.CTkButton(
+            frame_password,
+            text="👁️",
+            command=lambda: self._toggle_password(entry_password, btn_toggle_password),
+            width=40,
+            height=40,
+            fg_color="gray"
+        )
+        btn_toggle_password.pack(side="left")
         
         # Confirmar password
         ctk.CTkLabel(frame, text="Confirmar Contraseña *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=10)
-        entry_password2 = ctk.CTkEntry(frame, width=380, height=40, placeholder_text="Repetir contraseña", show="●")
-        entry_password2.pack(padx=10, pady=(5, 15))
+        frame_password2 = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_password2.pack(padx=10, pady=(5, 15))
+        entry_password2 = ctk.CTkEntry(frame_password2, width=330, height=40, placeholder_text="Repetir contraseña", show="●")
+        entry_password2.pack(side="left", padx=(0, 5))
+        btn_toggle_password2 = ctk.CTkButton(
+            frame_password2,
+            text="👁️",
+            command=lambda: self._toggle_password(entry_password2, btn_toggle_password2),
+            width=40,
+            height=40,
+            fg_color="gray"
+        )
+        btn_toggle_password2.pack(side="left")
         
         # Rol
         ctk.CTkLabel(frame, text="Rol *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=10)
@@ -357,7 +388,7 @@ class PanelAdmin(ctk.CTkFrame):
         """Muestra diálogo para editar usuario"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Editar Usuario")
-        dialogo.geometry("450x400")
+        dialogo.geometry("450x500")
         dialogo.transient(self)
         dialogo.grab_set()
         
@@ -477,14 +508,36 @@ class PanelAdmin(ctk.CTkFrame):
         
         # Nueva password
         ctk.CTkLabel(frame, text="Nueva Contraseña *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=10)
-        entry_password = ctk.CTkEntry(frame, width=380, height=40, placeholder_text="Mínimo 6 caracteres", show="●")
-        entry_password.pack(padx=10, pady=(5, 15))
+        frame_password = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_password.pack(padx=10, pady=(5, 15))
+        entry_password = ctk.CTkEntry(frame_password, width=330, height=40, placeholder_text="Mínimo 6 caracteres", show="●")
+        entry_password.pack(side="left", padx=(0, 5))
+        btn_toggle_password = ctk.CTkButton(
+            frame_password,
+            text="👁️",
+            command=lambda: self._toggle_password(entry_password, btn_toggle_password),
+            width=40,
+            height=40,
+            fg_color="gray"
+        )
+        btn_toggle_password.pack(side="left")
         entry_password.focus()
         
         # Confirmar
         ctk.CTkLabel(frame, text="Confirmar Contraseña *", font=ctk.CTkFont(size=13)).pack(anchor="w", padx=10)
-        entry_password2 = ctk.CTkEntry(frame, width=380, height=40, placeholder_text="Repetir contraseña", show="●")
-        entry_password2.pack(padx=10, pady=(5, 15))
+        frame_password2 = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_password2.pack(padx=10, pady=(5, 15))
+        entry_password2 = ctk.CTkEntry(frame_password2, width=330, height=40, placeholder_text="Repetir contraseña", show="●")
+        entry_password2.pack(side="left", padx=(0, 5))
+        btn_toggle_password2 = ctk.CTkButton(
+            frame_password2,
+            text="👁️",
+            command=lambda: self._toggle_password(entry_password2, btn_toggle_password2),
+            width=40,
+            height=40,
+            fg_color="gray"
+        )
+        btn_toggle_password2.pack(side="left")
         
         # Label error
         label_error = ctk.CTkLabel(frame, text="", text_color=COLOR_DANGER, wraplength=360)
@@ -740,7 +793,7 @@ class PanelAdmin(ctk.CTkFrame):
         
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Editar Rol")
-        dialogo.geometry("400x250")
+        dialogo.geometry("400x350")
         dialogo.transient(self)
         dialogo.grab_set()
         

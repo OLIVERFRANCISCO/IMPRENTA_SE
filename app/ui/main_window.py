@@ -14,6 +14,8 @@ from app.ui.panel_servicios import PanelServicios
 from app.ui.panel_pedidos_clientes import PanelPedidosClientes
 from app.ui.panel_maquinas import PanelMaquinas
 from app.ui.panel_admin import PanelAdmin
+from app.ui.panel_perfil import PanelPerfil
+from app.ui.panel_reglas_experto import PanelReglasExperto
 
 
 class ImprentaApp(ctk.CTk):
@@ -38,7 +40,9 @@ class ImprentaApp(ctk.CTk):
         'inventario': '📦',
         'maquina': '⚙️',
         'reporte': '📈',
-        'admin': '⚙️'
+        'admin': '⚙️',
+        'perfil': '👤',
+        'reglas': '🧠'
     }
     
     # Mapeo de paneles a identificadores para permisos
@@ -50,7 +54,9 @@ class ImprentaApp(ctk.CTk):
         'btn_inventario': 'panel_inventario',
         'btn_maquinas': 'panel_maquinas',
         'btn_reportes': 'panel_reportes',
-        'btn_admin': 'panel_admin'
+        'btn_admin': 'panel_admin',
+        'btn_perfil': None,  # No requiere permisos, disponible para todos
+        'btn_reglas': None   # Solo admin (verificación en panel)
     }
 
     def __init__(self):
@@ -222,11 +228,19 @@ class ImprentaApp(ctk.CTk):
             config_botones.append(
                 ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 10, 'panel_admin')
             )
+            config_botones.append(
+                ("Reglas Experto", self.ICONOS['reglas'], self.mostrar_panel_reglas, 11, None)
+            )
+        
+        # Agregar perfil (disponible para todos)
+        config_botones.append(
+            ("Mi Perfil", self.ICONOS['perfil'], self.mostrar_panel_perfil, 12, None)
+        )
         
         # Crear botones solo si tiene permiso para verlos
         for texto, icono, comando, fila, panel_id in config_botones:
-            # Verificar permiso de ver panel
-            if auth_service.puede_ver_panel(panel_id):
+            # Verificar permiso de ver panel (None = disponible para todos)
+            if panel_id is None or auth_service.puede_ver_panel(panel_id):
                 boton = self._crear_boton_navegacion(texto, icono, comando)
                 boton.grid(row=fila, column=0, padx=20, pady=8, sticky="ew")
                 
@@ -267,7 +281,7 @@ class ImprentaApp(ctk.CTk):
             self.sidebar,
             fg_color="transparent"
         )
-        footer_frame.grid(row=11, column=0, padx=20, pady=20, sticky="ew")
+        footer_frame.grid(row=13, column=0, padx=20, pady=20, sticky="ew")
         
         # Botón de cerrar sesión
         self.btn_logout = ctk.CTkButton(
@@ -381,6 +395,17 @@ class ImprentaApp(ctk.CTk):
             messagebox.showerror("Acceso Denegado", "Solo los administradores pueden acceder a este panel")
             return
         self._mostrar_panel(PanelAdmin, 'btn_admin')
+    
+    def mostrar_panel_perfil(self):
+        """Muestra el panel de perfil de usuario (todos)"""
+        self._mostrar_panel(PanelPerfil, 'btn_perfil')
+    
+    def mostrar_panel_reglas(self):
+        """Muestra el panel de reglas del sistema experto (solo admin)"""
+        if not auth_service.is_admin():
+            messagebox.showerror("Acceso Denegado", "Solo los administradores pueden gestionar reglas del sistema")
+            return
+        self._mostrar_panel(PanelReglasExperto, 'btn_reglas')
     
     def _mostrar_panel_inicial(self):
         """Muestra el primer panel al que el usuario tiene acceso"""

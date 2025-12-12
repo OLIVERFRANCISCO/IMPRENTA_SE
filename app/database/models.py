@@ -447,6 +447,71 @@ class Permiso(Base):
             'id': self.id,
             'rol_id': self.rol_id,
             'panel': self.panel,
+            'permiso': self.permiso
+        }
+
+
+class ReglaExperto(Base):
+    """
+    Modelo de Regla del Sistema Experto
+    
+    Almacena las reglas IF-THEN del motor de inferencia
+    """
+    __tablename__ = 'reglas_experto'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero_regla = Column(String, nullable=False, unique=True)  # REGLA-01, REGLA-02, etc.
+    categoria = Column(String, nullable=False)  # 'maquina', 'material', 'tiempo', 'metraje', 'acabado', 'rentabilidad'
+    nombre = Column(String, nullable=False)  # Nombre descriptivo de la regla
+    descripcion = Column(Text, nullable=False)  # Descripción completa de la regla
+    
+    # Condiciones (IF) en formato JSON o texto estructurado
+    condiciones = Column(Text, nullable=False)  # JSON con las condiciones
+    
+    # Acciones (THEN) en formato JSON o texto estructurado
+    acciones = Column(Text, nullable=False)  # JSON con las acciones
+    
+    # Prioridad para resolver conflictos
+    prioridad = Column(Integer, default=1)  # 1 = más alta, 10 = más baja
+    
+    # Estado activo/inactivo
+    activa = Column(Integer, default=1)  # 1 = activa, 0 = inactiva
+    
+    # Metadatos
+    creada_por = Column(Integer, ForeignKey('usuarios.id'), nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_modificacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relación con usuario creador
+    creador = relationship('Usuario', foreign_keys=[creada_por])
+    
+    def __repr__(self):
+        return f"<ReglaExperto(numero='{self.numero_regla}', categoria='{self.categoria}', activa={self.activa})>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'numero_regla': self.numero_regla,
+            'categoria': self.categoria,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'condiciones': self.condiciones,
+            'acciones': self.acciones,
+            'prioridad': self.prioridad,
+            'activa': bool(self.activa),
+            'creada_por': self.creada_por,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None
+        }
+    
+    def __repr__(self):
+        return f"<Permiso(rol_id={self.rol_id}, panel='{self.panel}', permiso='{self.permiso}')>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'rol_id': self.rol_id,
+            'panel': self.panel,
             'permiso': self.permiso,
             'nombre_rol': self.rol.nombre_rol if self.rol else None
         }
