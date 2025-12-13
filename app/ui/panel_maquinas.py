@@ -158,59 +158,108 @@ class PanelMaquinas(ctk.CTkFrame):
         btn_eliminar.pack(side="left", padx=2)
 
     def _mostrar_dialogo_maquina(self, maquina=None):
-        """Muestra diálogo para agregar o editar máquina"""
+        """Muestra diálogo para agregar o editar máquina con capacidades físicas"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Nueva Máquina" if maquina is None else "Editar Máquina")
-        dialogo.geometry("550x500")
+        dialogo.geometry("600x650")
         dialogo.transient(self)
         dialogo.grab_set()
 
         # Centrar ventana
         dialogo.update_idletasks()
-        x = (dialogo.winfo_screenwidth() // 2) - (550 // 2)
-        y = (dialogo.winfo_screenheight() // 2) - (500 // 2)
+        x = (dialogo.winfo_screenwidth() // 2) - (600 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (650 // 2)
         dialogo.geometry(f"+{x}+{y}")
 
-        # Contenedor para campos
-        frame_campos = ctk.CTkFrame(dialogo)
-        frame_campos.pack(fill="both", expand=True, padx=20, pady=20)
+        # Contenedor scrollable
+        scroll = ctk.CTkScrollableFrame(dialogo)
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Campos
-        ctk.CTkLabel(frame_campos, text="Nombre de la Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(20, 5))
-        entry_nombre = ctk.CTkEntry(frame_campos, width=450)
-        entry_nombre.pack(pady=5)
+        # === SECCIÓN: Información Básica ===
+        ctk.CTkLabel(scroll, text="📋 Información Básica", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 15), anchor="w")
+
+        ctk.CTkLabel(scroll, text="Nombre de la Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(5, 5), anchor="w")
+        entry_nombre = ctk.CTkEntry(scroll, width=450)
+        entry_nombre.pack(pady=5, anchor="w")
         if maquina:
             entry_nombre.insert(0, maquina['nombre'])
 
-        ctk.CTkLabel(frame_campos, text="Tipo de Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
+        ctk.CTkLabel(scroll, text="Tipo de Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5), anchor="w")
         combo_tipo = ctk.CTkComboBox(
-            frame_campos,
-            values=["Pequeño Formato", "Gran Formato", "Acabado", "Sublimación", "Láser"],
+            scroll,
+            values=["Pequeño Formato", "Gran Formato", "Acabado", "Sublimación", "Láser", "Plotter de Corte", "UV"],
             width=450
         )
-        combo_tipo.pack(pady=5)
+        combo_tipo.pack(pady=5, anchor="w")
         if maquina:
             combo_tipo.set(maquina['tipo'])
         else:
             combo_tipo.set("Pequeño Formato")
         
-        # FASE 3: Campo Sugerencia
-        ctk.CTkLabel(frame_campos, text="Sugerencia / Recomendación:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5))
-        text_sugerencia = ctk.CTkTextbox(frame_campos, width=450, height=100)
-        text_sugerencia.pack(pady=5)
+        # === SECCIÓN: Capacidades Físicas (CONOCIMIENTO TÉCNICO) ===
+        ctk.CTkLabel(scroll, text="⚙️ Capacidades Físicas (Sistema Experto)", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(25, 5), anchor="w")
+        ctk.CTkLabel(scroll, text="El sistema usa estos datos para recomendar máquinas automáticamente", 
+                    font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(0, 10), anchor="w")
+        
+        frame_capacidades = ctk.CTkFrame(scroll, fg_color="gray20", corner_radius=10)
+        frame_capacidades.pack(fill="x", pady=10, padx=5)
+        
+        # Obtener capacidad actual si existe
+        capacidad_actual = self._obtener_capacidad_maquina(maquina['id_maquina']) if maquina else None
+        
+        # Ancho máximo útil
+        ctk.CTkLabel(frame_capacidades, text="Ancho máximo útil (metros):", 
+                    font=ctk.CTkFont(size=12)).grid(row=0, column=0, padx=15, pady=10, sticky="w")
+        entry_ancho_max = ctk.CTkEntry(frame_capacidades, width=150, placeholder_text="Ej: 1.60")
+        entry_ancho_max.grid(row=0, column=1, padx=10, pady=10)
+        if capacidad_actual:
+            entry_ancho_max.insert(0, str(capacidad_actual.get('ancho_util_max', '')))
+        
+        # Largo máximo útil
+        ctk.CTkLabel(frame_capacidades, text="Largo máximo útil (metros):", 
+                    font=ctk.CTkFont(size=12)).grid(row=1, column=0, padx=15, pady=10, sticky="w")
+        entry_largo_max = ctk.CTkEntry(frame_capacidades, width=150, placeholder_text="0 = ilimitado")
+        entry_largo_max.grid(row=1, column=1, padx=10, pady=10)
+        if capacidad_actual:
+            entry_largo_max.insert(0, str(capacidad_actual.get('largo_util_max', '')))
+        
+        # Velocidad promedio
+        ctk.CTkLabel(frame_capacidades, text="Velocidad promedio (unidades/hora):", 
+                    font=ctk.CTkFont(size=12)).grid(row=2, column=0, padx=15, pady=10, sticky="w")
+        entry_velocidad = ctk.CTkEntry(frame_capacidades, width=150, placeholder_text="Ej: 10")
+        entry_velocidad.grid(row=2, column=1, padx=10, pady=10)
+        if capacidad_actual:
+            entry_velocidad.insert(0, str(capacidad_actual.get('velocidad_promedio', '')))
+        
+        # === SECCIÓN: Sugerencia ===
+        ctk.CTkLabel(scroll, text="💡 Sugerencia / Recomendación:", 
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(20, 5), anchor="w")
+        text_sugerencia = ctk.CTkTextbox(scroll, width=450, height=80)
+        text_sugerencia.pack(pady=5, anchor="w")
         if maquina:
             text_sugerencia.insert("1.0", maquina.get('sugerencia', ''))
         else:
             text_sugerencia.insert("1.0", "Ej: Ideal para trabajos de alta calidad, soporta materiales rígidos...")
 
         # Frame de botones
-        frame_botones = ctk.CTkFrame(dialogo)
-        frame_botones.pack(fill="x", padx=20, pady=10)
+        frame_botones = ctk.CTkFrame(dialogo, fg_color="transparent")
+        frame_botones.pack(fill="x", padx=20, pady=15)
 
         def guardar():
             nombre = entry_nombre.get().strip()
             tipo = combo_tipo.get()
             sugerencia = text_sugerencia.get("1.0", "end-1c").strip()
+            
+            # Capacidades físicas
+            try:
+                ancho_max = float(entry_ancho_max.get() or 0)
+                largo_max = float(entry_largo_max.get() or 0)
+                velocidad = float(entry_velocidad.get() or 10)
+            except ValueError:
+                messagebox.showwarning("Validación", "Las capacidades deben ser valores numéricos")
+                return
 
             if not nombre:
                 messagebox.showwarning("Validación", "Debe ingresar un nombre")
@@ -222,9 +271,14 @@ class PanelMaquinas(ctk.CTkFrame):
                         maquina['id_maquina'],
                         nombre, tipo, sugerencia
                     )
+                    # Actualizar capacidades
+                    self._guardar_capacidad_maquina(maquina['id_maquina'], ancho_max, largo_max, velocidad)
                     messagebox.showinfo("Éxito", "Máquina actualizada correctamente")
                 else:
-                    consultas.guardar_maquina(nombre, tipo, sugerencia)
+                    id_nueva = consultas.guardar_maquina(nombre, tipo, sugerencia)
+                    # Guardar capacidades de la nueva máquina
+                    if id_nueva:
+                        self._guardar_capacidad_maquina(id_nueva, ancho_max, largo_max, velocidad)
                     messagebox.showinfo("Éxito", "Máquina agregada correctamente")
 
                 dialogo.destroy()
@@ -253,6 +307,53 @@ class PanelMaquinas(ctk.CTkFrame):
             fg_color=COLOR_SUCCESS
         )
         btn_guardar.pack(side="right", padx=10)
+    
+    def _obtener_capacidad_maquina(self, id_maquina):
+        """Obtiene las capacidades físicas de una máquina desde la BD"""
+        from app.database.conexion import get_session
+        from sqlalchemy import text
+        session = get_session()
+        try:
+            result = session.execute(text("""
+                SELECT ancho_util_max, largo_util_max, velocidad_promedio
+                FROM capacidad_maquinas WHERE id_maquina = :id
+            """), {'id': id_maquina}).fetchone()
+            if result:
+                return {
+                    'ancho_util_max': result[0],
+                    'largo_util_max': result[1],
+                    'velocidad_promedio': result[2]
+                }
+            return None
+        finally:
+            session.close()
+    
+    def _guardar_capacidad_maquina(self, id_maquina, ancho_max, largo_max, velocidad):
+        """Guarda o actualiza las capacidades físicas de una máquina"""
+        from app.database.conexion import get_session
+        from sqlalchemy import text
+        session = get_session()
+        try:
+            # Verificar si ya existe
+            existe = session.execute(text(
+                "SELECT 1 FROM capacidad_maquinas WHERE id_maquina = :id"
+            ), {'id': id_maquina}).fetchone()
+            
+            if existe:
+                session.execute(text("""
+                    UPDATE capacidad_maquinas 
+                    SET ancho_util_max = :ancho, largo_util_max = :largo, velocidad_promedio = :vel
+                    WHERE id_maquina = :id
+                """), {'id': id_maquina, 'ancho': ancho_max, 'largo': largo_max, 'vel': velocidad})
+            else:
+                session.execute(text("""
+                    INSERT INTO capacidad_maquinas (id_maquina, ancho_util_max, largo_util_max, velocidad_promedio)
+                    VALUES (:id, :ancho, :largo, :vel)
+                """), {'id': id_maquina, 'ancho': ancho_max, 'largo': largo_max, 'vel': velocidad})
+            
+            session.commit()
+        finally:
+            session.close()
 
     def _confirmar_eliminar_maquina(self, maquina):
         """Muestra diálogo de confirmación antes de eliminar"""

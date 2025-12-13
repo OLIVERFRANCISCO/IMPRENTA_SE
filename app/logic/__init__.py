@@ -4,16 +4,17 @@ Contiene cálculos y reglas del sistema experto
 """
 
 from .calculos import *
-from .reglas_experto import *
+from .motor_inferencia import *
 
 __all__ = [
     'calcular_area',
     'calcular_costo_material',
     'calcular_costo_total',
-    'sugerir_maquina',
-    'sugerir_material',
-    'estimar_tiempo_entrega',
-    'validar_metraje',
-    'analizar_pedido_completo'
+    # Funciones del motor de inferencia (reemplazan reglas_experto)
+    'sugerir_maquina_experto',
+    'sugerir_material_experto',
+    'validar_trabajo_experto',
+    'estimar_tiempo_experto',
+    'analizar_pedido_experto'
 ]
 

@@ -15,6 +15,7 @@ from app.ui.panel_pedidos_clientes import PanelPedidosClientes
 from app.ui.panel_maquinas import PanelMaquinas
 from app.ui.panel_admin import PanelAdmin
 from app.ui.panel_perfil import PanelPerfil
+from app.ui.panel_reglas_experto import PanelReglasExperto
 
 
 class ImprentaApp(ctk.CTk):
@@ -41,6 +42,7 @@ class ImprentaApp(ctk.CTk):
         'reporte': '📈',
         'admin': '⚙️',
         'perfil': '👤',
+        'reglas': '🧠',
     }
     
     # Mapeo de paneles a identificadores para permisos
@@ -52,6 +54,7 @@ class ImprentaApp(ctk.CTk):
         'btn_inventario': 'panel_inventario',
         'btn_maquinas': 'panel_maquinas',
         'btn_reportes': 'panel_reportes',
+        'btn_reglas': 'panel_reglas',
         'btn_admin': 'panel_admin',
         'btn_perfil': None,  # No requiere permisos, disponible para todos
     }
@@ -220,10 +223,16 @@ class ImprentaApp(ctk.CTk):
             ("Reportes", self.ICONOS['reporte'], self.mostrar_panel_reportes, 9, 'panel_reportes'),
         ]
         
+        # Agregar panel de reglas del sistema experto (solo admin)
+        if auth_service.is_admin():
+            config_botones.append(
+                ("Base de Conocimientos", self.ICONOS['reglas'], self.mostrar_panel_reglas, 10, 'panel_reglas')
+            )
+        
         # Agregar panel de admin solo si es admin
         if auth_service.is_admin():
             config_botones.append(
-                ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 10, 'panel_admin')
+                ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 11, 'panel_admin')
             )
         
         # Agregar perfil (disponible para todos)
@@ -382,6 +391,13 @@ class ImprentaApp(ctk.CTk):
     def mostrar_panel_reportes(self):
         """Muestra el panel de generación de reportes y estadísticas"""
         self._mostrar_panel(PanelReportes, 'btn_reportes')
+    
+    def mostrar_panel_reglas(self):
+        """Muestra el panel de reglas del sistema experto (solo admin)"""
+        if not auth_service.is_admin():
+            messagebox.showerror("Acceso Denegado", "Solo los administradores pueden configurar las reglas")
+            return
+        self._mostrar_panel(PanelReglasExperto, 'btn_reglas')
     
     def mostrar_panel_admin(self):
         """Muestra el panel de administración (solo admin)"""

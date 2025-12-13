@@ -106,7 +106,9 @@ class DatabaseConnection:
         
         Inserta estados de pedidos, máquinas y servicios de ejemplo
         """
-        from app.database.models import EstadoPedido, Maquina, Servicio
+        from app.database.models import (
+            EstadoPedido, Maquina, Servicio, TipoMaquina, UnidadMedida
+        )
         
         with self.session_scope() as session:
             # Verificar y cargar estados de pedidos
@@ -124,28 +126,61 @@ class DatabaseConnection:
                 session.add_all(estados)
                 print("✅ Estados de pedidos inicializados")
             
-            # 
+            # Cargar unidades de medida si no existen
+            if session.query(UnidadMedida).count() == 0:
+                unidades = [
+                    UnidadMedida(nombre_unidad="Metro Cuadrado", abreviacion="m2", tipo="Area"),
+                    UnidadMedida(nombre_unidad="Unidad", abreviacion="unidad", tipo="Conteo"),
+                    UnidadMedida(nombre_unidad="Ciento", abreviacion="ciento", tipo="Conteo"),
+                    UnidadMedida(nombre_unidad="Metro Lineal", abreviacion="ml", tipo="Longitud"),
+                    UnidadMedida(nombre_unidad="Millar", abreviacion="millar", tipo="Conteo"),
+                ]
+                session.add_all(unidades)
+                session.flush()
+                print("✅ Unidades de medida inicializadas")
+            
+            # Cargar tipos de máquinas si no existen
+            if session.query(TipoMaquina).count() == 0:
+                tipos_maq = [
+                    TipoMaquina(nombre_tipo="Pequeño Formato"),
+                    TipoMaquina(nombre_tipo="Gran Formato"),
+                    TipoMaquina(nombre_tipo="Acabado"),
+                    TipoMaquina(nombre_tipo="Corte"),
+                ]
+                session.add_all(tipos_maq)
+                session.flush()
+                print("✅ Tipos de máquinas inicializados")
 
             # Verificar y cargar máquinas
             if session.query(Maquina).count() == 0:
+                # Obtener tipos de máquinas
+                tipo_peq = session.query(TipoMaquina).filter_by(nombre_tipo="Pequeño Formato").first()
+                tipo_gran = session.query(TipoMaquina).filter_by(nombre_tipo="Gran Formato").first()
+                tipo_acab = session.query(TipoMaquina).filter_by(nombre_tipo="Acabado").first()
+                
                 maquinas = [
-                    Maquina(nombre="Impresora Láser A3", tipo="Pequeño Formato"),
-                    Maquina(nombre="Impresora Sublimación", tipo="Pequeño Formato"),
-                    Maquina(nombre="Plotter HP DesignJet", tipo="Gran Formato"),
-                    Maquina(nombre="Laminadora Manual", tipo="Acabado")
+                    Maquina(nombre="Impresora Láser A3", id_tipo_maquina=tipo_peq.id_tipo_maquina if tipo_peq else 1),
+                    Maquina(nombre="Impresora Sublimación", id_tipo_maquina=tipo_peq.id_tipo_maquina if tipo_peq else 1),
+                    Maquina(nombre="Plotter HP DesignJet", id_tipo_maquina=tipo_gran.id_tipo_maquina if tipo_gran else 2),
+                    Maquina(nombre="Laminadora Manual", id_tipo_maquina=tipo_acab.id_tipo_maquina if tipo_acab else 3)
                 ]
                 session.add_all(maquinas)
                 print("✅ Máquinas inicializadas")
             
             # Verificar y cargar servicios
             if session.query(Servicio).count() == 0:
+                # Obtener unidades de cobro
+                unidad_m2 = session.query(UnidadMedida).filter_by(abreviacion="m2").first()
+                unidad_und = session.query(UnidadMedida).filter_by(abreviacion="unidad").first()
+                unidad_ciento = session.query(UnidadMedida).filter_by(abreviacion="ciento").first()
+                
                 servicios = [
-                    Servicio(nombre_servicio="Gigantografía", unidad_cobro="m2", precio_base=25.0, id_maquina_sugerida=3),
-                    Servicio(nombre_servicio="Banner Roll-Up", unidad_cobro="unidad", precio_base=80.0, id_maquina_sugerida=3),
-                    Servicio(nombre_servicio="Tarjetas de Presentación", unidad_cobro="ciento", precio_base=15.0, id_maquina_sugerida=1),
-                    Servicio(nombre_servicio="Flyers A5", unidad_cobro="ciento", precio_base=20.0, id_maquina_sugerida=1),
-                    Servicio(nombre_servicio="Tazas Personalizadas", unidad_cobro="unidad", precio_base=12.0, id_maquina_sugerida=2),
-                    Servicio(nombre_servicio="Llaveros", unidad_cobro="unidad", precio_base=3.0, id_maquina_sugerida=2)
+                    Servicio(nombre_servicio="Gigantografía", id_unidad_cobro=unidad_m2.id_unidad if unidad_m2 else 1, precio_base=25.0, id_maquina_sugerida=3),
+                    Servicio(nombre_servicio="Banner Roll-Up", id_unidad_cobro=unidad_und.id_unidad if unidad_und else 2, precio_base=80.0, id_maquina_sugerida=3),
+                    Servicio(nombre_servicio="Tarjetas de Presentación", id_unidad_cobro=unidad_ciento.id_unidad if unidad_ciento else 3, precio_base=15.0, id_maquina_sugerida=1),
+                    Servicio(nombre_servicio="Flyers A5", id_unidad_cobro=unidad_ciento.id_unidad if unidad_ciento else 3, precio_base=20.0, id_maquina_sugerida=1),
+                    Servicio(nombre_servicio="Tazas Personalizadas", id_unidad_cobro=unidad_und.id_unidad if unidad_und else 2, precio_base=12.0, id_maquina_sugerida=2),
+                    Servicio(nombre_servicio="Llaveros", id_unidad_cobro=unidad_und.id_unidad if unidad_und else 2, precio_base=3.0, id_maquina_sugerida=2)
                 ]
                 session.add_all(servicios)
                 print("✅ Servicios inicializados")

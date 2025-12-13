@@ -12,7 +12,8 @@ import io
 
 from app.config import *
 from app.database import consultas
-from app.logic import calculos, reglas_experto
+from app.logic import calculos
+from app.logic.motor_inferencia import analizar_pedido_experto
 from app.ui.widgets import AutocompleteEntry
 
 
@@ -665,7 +666,7 @@ class PanelPedidos(ctk.CTkFrame):
                 self.frame_rollo_info.grid_remove()
                 return
 
-            rollo_optimo = calculos.seleccionar_rollo_optimo(ancho, material, materiales_disp)
+            rollo_optimo = calculos.seleccionar_rollo_optimo(ancho, material_limpio, materiales_disp)
 
             if rollo_optimo:
                 self.rollo_seleccionado = rollo_optimo
@@ -696,7 +697,7 @@ class PanelPedidos(ctk.CTkFrame):
 
                 mensaje = (
                     f"{IconoSVG.ERROR} No hay rollo disponible\n\n"
-                    f"No existe un rollo de '{material}' suficientemente ancho.\n"
+                    f"No existe un rollo de '{material_limpio}' suficientemente ancho.\n"
                     f"Ancho requerido: {ancho + 0.05:.2f} m"
                 )
 
@@ -742,15 +743,13 @@ class PanelPedidos(ctk.CTkFrame):
             cantidad = int(self.entry_cantidad.get() or 1)
             servicio = self.combo_servicio.get()
 
-            # Análisis del sistema experto
-            analisis = reglas_experto.analizar_pedido_completo(
-                tipo_trabajo=servicio,
+            # Análisis del sistema experto (Motor de Inferencia Dinámico)
+            id_servicio = self.servicio_actual.get('id_servicio') if self.servicio_actual else None
+            analisis = analizar_pedido_experto(
+                id_servicio=id_servicio,
                 ancho=ancho,
                 alto=alto,
-                cantidad=cantidad,
-                material_disponible=True,
-                requiere_diseño=False,
-                es_urgente=False
+                cantidad=cantidad
             )
 
             # Formatear recomendaciones
@@ -776,25 +775,69 @@ class PanelPedidos(ctk.CTkFrame):
             messagebox.showerror(f"{IconoSVG.ERROR} Error", f"Datos inválidos: {str(e)}")
 
     def _formatear_recomendaciones(self, analisis):
-        """Formatea el análisis del sistema experto"""
-        texto = f"{IconoSVG.RECOMENDACION} MÁQUINA RECOMENDADA\n"
-        texto += f"{analisis['maquina']['maquina_recomendada']}\n"
-        texto += f"{analisis['maquina']['explicacion']}\n\n"
-
-        texto += f"{IconoSVG.MATERIAL} MATERIALES SUGERIDOS\n"
-        for mat in analisis['material']['materiales_recomendados']:
-            texto += f"• {mat['nombre']}: {mat['razon']}\n"
-
-        texto += f"\n{IconoSVG.CALCULAR} TIEMPO DE ENTREGA\n"
-        texto += f"Producción: {analisis['tiempo']['horas_estimadas']:.1f} horas\n"
-        texto += f"Días hábiles: {analisis['tiempo']['dias_habiles']}\n"
-        texto += f"Fecha: {analisis['tiempo']['fecha_entrega'].strftime('%d/%m/%Y %H:%M')}\n"
-
-        if analisis['validacion_metraje']['advertencias']:
+        """Formatea el análisis del sistema experto (Motor de Inferencia)"""
+        texto = f"{IconoSVG.RECOMENDACION} MAQUINA RECOMENDADA\n"
+        
+        # Máquina recomendada
+        maq = analisis.get('recomendacion_maquina', {})
+        if maq.get('nombre'):
+            texto += f"{maq['nombre']}\n"
+            texto += f"{maq.get('explicacion', '')}\n"
+            # Mostrar origen de la inferencia
+            origen = maq.get('origen_inferencia', '')
+            if origen == 'bd_servicio':
+                texto += "(Basado en reglas del servicio)\n"
+            elif origen == 'bd_capacidad':
+                texto += "(Basado en capacidad fisica)\n"
+        else:
+            texto += "No hay maquina disponible\n"
+        
+        texto += "\n"
+        
+        # Material recomendado
+        texto += f"{IconoSVG.MATERIAL} MATERIAL SUGERIDO\n"
+        mat = analisis.get('recomendacion_material', {})
+        if mat.get('nombre'):
+            texto += f"{mat['nombre']}\n"
+            texto += f"{mat.get('explicacion', '')}\n"
+            # Alternativas
+            alternativas = mat.get('alternativas', [])
+            if alternativas:
+                texto += "Alternativas: "
+                texto += ", ".join([a['nombre'] for a in alternativas[:3]])
+                texto += "\n"
+        else:
+            texto += "Sin materiales configurados para este servicio\n"
+        
+        texto += "\n"
+        
+        # Tiempo estimado
+        texto += f"{IconoSVG.CALCULAR} TIEMPO ESTIMADO\n"
+        tiempo = analisis.get('tiempo_estimado', {})
+        texto += f"Produccion: {tiempo.get('horas_estimadas', 0):.1f} horas\n"
+        texto += f"{tiempo.get('explicacion', '')}\n"
+        
+        # Alertas y advertencias
+        alertas = analisis.get('alertas', [])
+        errores = analisis.get('errores', [])
+        
+        if errores:
+            texto += f"\n{IconoSVG.ERROR} ERRORES\n"
+            for err in errores:
+                texto += f"* {err}\n"
+        
+        if alertas:
             texto += f"\n{IconoSVG.ALERTA} ADVERTENCIAS\n"
-            for adv in analisis['validacion_metraje']['advertencias']:
-                texto += f"• {adv}\n"
-
+            for alerta in alertas:
+                texto += f"* {alerta}\n"
+        
+        # Resumen
+        resumen = analisis.get('resumen', {})
+        if resumen:
+            texto += f"\n--- RESUMEN ---\n"
+            texto += f"Area: {resumen.get('area_m2', 0)} m2\n"
+            texto += f"Cantidad: {resumen.get('cantidad', 1)}\n"
+        
         return texto
 
     def _guardar_pedido(self):
