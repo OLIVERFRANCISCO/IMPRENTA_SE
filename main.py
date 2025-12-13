@@ -40,6 +40,9 @@ def inicializar_datos_auth():
             # Crear usuario admin por defecto
             consultas_auth.crear_usuario('admin', 'admin123', id_admin)
             print("✓ Usuario administrador creado (admin/admin123)")
+
+            consultas_auth.crear_usuario('empleado', 'empleado123', id_empleado)
+            print("✓ Usuario empleado creado (empleado/empleado123)")
             
             # Configurar permisos básicos para empleado
             permisos_empleado = {
@@ -90,7 +93,22 @@ def main():
         print(f"✗ Error al iniciar la aplicación: {e}")
         import traceback
         traceback.print_exc()
-        input("Presione Enter para salir...")
+        # input() removido para compatibilidad con cx_Freeze (causa RuntimeError)
+        # En versión empaquetada, los errores se mostrarán en un messagebox
+        if getattr(sys, 'frozen', False):
+            # Aplicación empaquetada
+            from tkinter import messagebox
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror(
+                "Error de Inicialización",
+                f"No se pudo iniciar la aplicación:\n\n{str(e)}\n\nRevise el archivo de log para más detalles."
+            )
+            root.destroy()
+        else:
+            # Modo desarrollo
+            input("Presione Enter para salir...")
     finally:
         # Limpiar sesiones al salir
         try:

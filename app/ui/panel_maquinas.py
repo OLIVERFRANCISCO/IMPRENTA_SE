@@ -127,11 +127,21 @@ class PanelMaquinas(ctk.CTkFrame):
         frame_acciones = ctk.CTkFrame(frame_fila, fg_color="transparent")
         frame_acciones.grid(row=0, column=3, padx=10, pady=5)
 
+        btn_servicios = ctk.CTkButton(
+            frame_acciones,
+            text="🔗 Servicios",
+            command=lambda m=maquina: self._gestionar_servicios_maquina(m),
+            width=100,
+            height=30,
+            fg_color="#2196F3"
+        )
+        btn_servicios.pack(side="left", padx=2)
+
         btn_editar = ctk.CTkButton(
             frame_acciones,
             text="Editar",
             command=lambda m=maquina: self._mostrar_dialogo_maquina(m),
-            width=80,
+            width=70,
             height=30,
             fg_color=COLOR_PRIMARY
         )
@@ -141,7 +151,7 @@ class PanelMaquinas(ctk.CTkFrame):
             frame_acciones,
             text="Eliminar",
             command=lambda m=maquina: self._confirmar_eliminar_maquina(m),
-            width=80,
+            width=70,
             height=30,
             fg_color=COLOR_DANGER
         )
@@ -151,14 +161,14 @@ class PanelMaquinas(ctk.CTkFrame):
         """Muestra diálogo para agregar o editar máquina"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Nueva Máquina" if maquina is None else "Editar Máquina")
-        dialogo.geometry("500x350")
+        dialogo.geometry("550x500")
         dialogo.transient(self)
         dialogo.grab_set()
 
         # Centrar ventana
         dialogo.update_idletasks()
-        x = (dialogo.winfo_screenwidth() // 2) - (500 // 2)
-        y = (dialogo.winfo_screenheight() // 2) - (350 // 2)
+        x = (dialogo.winfo_screenwidth() // 2) - (550 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (500 // 2)
         dialogo.geometry(f"+{x}+{y}")
 
         # Contenedor para campos
@@ -167,7 +177,7 @@ class PanelMaquinas(ctk.CTkFrame):
 
         # Campos
         ctk.CTkLabel(frame_campos, text="Nombre de la Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(20, 5))
-        entry_nombre = ctk.CTkEntry(frame_campos, width=400)
+        entry_nombre = ctk.CTkEntry(frame_campos, width=450)
         entry_nombre.pack(pady=5)
         if maquina:
             entry_nombre.insert(0, maquina['nombre'])
@@ -176,13 +186,22 @@ class PanelMaquinas(ctk.CTkFrame):
         combo_tipo = ctk.CTkComboBox(
             frame_campos,
             values=["Pequeño Formato", "Gran Formato", "Acabado", "Sublimación", "Láser"],
-            width=400
+            width=450
         )
         combo_tipo.pack(pady=5)
         if maquina:
             combo_tipo.set(maquina['tipo'])
         else:
             combo_tipo.set("Pequeño Formato")
+        
+        # FASE 3: Campo Sugerencia
+        ctk.CTkLabel(frame_campos, text="Sugerencia / Recomendación:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5))
+        text_sugerencia = ctk.CTkTextbox(frame_campos, width=450, height=100)
+        text_sugerencia.pack(pady=5)
+        if maquina:
+            text_sugerencia.insert("1.0", maquina.get('sugerencia', ''))
+        else:
+            text_sugerencia.insert("1.0", "Ej: Ideal para trabajos de alta calidad, soporta materiales rígidos...")
 
         # Frame de botones
         frame_botones = ctk.CTkFrame(dialogo)
@@ -191,6 +210,7 @@ class PanelMaquinas(ctk.CTkFrame):
         def guardar():
             nombre = entry_nombre.get().strip()
             tipo = combo_tipo.get()
+            sugerencia = text_sugerencia.get("1.0", "end-1c").strip()
 
             if not nombre:
                 messagebox.showwarning("Validación", "Debe ingresar un nombre")
@@ -200,11 +220,11 @@ class PanelMaquinas(ctk.CTkFrame):
                 if maquina:
                     consultas.actualizar_maquina(
                         maquina['id_maquina'],
-                        nombre, tipo
+                        nombre, tipo, sugerencia
                     )
                     messagebox.showinfo("Éxito", "Máquina actualizada correctamente")
                 else:
-                    consultas.guardar_maquina(nombre, tipo)
+                    consultas.guardar_maquina(nombre, tipo, sugerencia)
                     messagebox.showinfo("Éxito", "Máquina agregada correctamente")
 
                 dialogo.destroy()
@@ -298,4 +318,185 @@ class PanelMaquinas(ctk.CTkFrame):
             fg_color=COLOR_DANGER
         )
         btn_confirmar.pack(side="left", padx=10)
+    
+    def _gestionar_servicios_maquina(self, maquina):
+        """Diálogo para gestionar servicios asociados a una máquina"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title(f"Servicios - {maquina['nombre']}")
+        dialogo.geometry("800x600")
+        dialogo.transient(self)
+        dialogo.grab_set()
+        
+        # Centrar ventana
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (800 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (600 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+        
+        # Frame principal con scroll
+        frame_principal = ctk.CTkScrollableFrame(dialogo, fg_color="transparent")
+        frame_principal.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Título
+        ctk.CTkLabel(
+            frame_principal,
+            text=f"Gestionar Servicios para: {maquina['nombre']}",
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(pady=(0, 20))
+        
+        # === SECCIÓN: SERVICIOS ASOCIADOS ===
+        frame_asociados = ctk.CTkFrame(frame_principal, fg_color="gray20")
+        frame_asociados.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(
+            frame_asociados,
+            text="Servicios Asociados",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=10, padx=10, anchor="w")
+        
+        # Lista de servicios asociados
+        frame_lista_asociados = ctk.CTkFrame(frame_asociados, fg_color="transparent")
+        frame_lista_asociados.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        def cargar_servicios_asociados():
+            # Limpiar lista
+            for widget in frame_lista_asociados.winfo_children():
+                widget.destroy()
+            
+            servicios = consultas.obtener_servicios_por_maquina(maquina['id_maquina'])
+            
+            if not servicios:
+                ctk.CTkLabel(
+                    frame_lista_asociados,
+                    text="No hay servicios asociados",
+                    text_color="gray"
+                ).pack(pady=10)
+                return
+            
+            for servicio in servicios:
+                frame_serv = ctk.CTkFrame(frame_lista_asociados, fg_color="gray25")
+                frame_serv.pack(fill="x", pady=2)
+                
+                # Indicador de recomendada
+                icono = "⭐" if servicio.get('es_recomendada') else "🔧"
+                
+                ctk.CTkLabel(
+                    frame_serv,
+                    text=f"{icono} {servicio['nombre_servicio']} ({servicio['unidad_cobro']})",
+                    font=ctk.CTkFont(size=12)
+                ).pack(side="left", padx=10, pady=8)
+                
+                # Botón marcar/desmarcar recomendada
+                btn_recomendada = ctk.CTkButton(
+                    frame_serv,
+                    text="★ Recomendada" if not servicio.get('es_recomendada') else "☆ Normal",
+                    command=lambda s=servicio: toggle_recomendada(s),
+                    width=120,
+                    height=25,
+                    fg_color="#FF9800" if not servicio.get('es_recomendada') else "gray"
+                )
+                btn_recomendada.pack(side="right", padx=2)
+                
+                # Botón eliminar asociación
+                btn_quitar = ctk.CTkButton(
+                    frame_serv,
+                    text="Quitar",
+                    command=lambda s=servicio: quitar_servicio(s),
+                    width=70,
+                    height=25,
+                    fg_color=COLOR_DANGER
+                )
+                btn_quitar.pack(side="right", padx=2)
+        
+        def toggle_recomendada(servicio):
+            nuevo_estado = not servicio.get('es_recomendada', False)
+            if consultas.marcar_maquina_recomendada(maquina['id_maquina'], servicio['id_servicio'], nuevo_estado):
+                cargar_servicios_asociados()
+        
+        def quitar_servicio(servicio):
+            if consultas.desasociar_servicio_de_maquina(maquina['id_maquina'], servicio['id_servicio']):
+                cargar_servicios_asociados()
+                cargar_servicios_disponibles()
+                messagebox.showinfo("Éxito", "Servicio desasociado correctamente")
+        
+        # === SECCIÓN: AGREGAR SERVICIOS ===
+        frame_agregar = ctk.CTkFrame(frame_principal, fg_color="gray20")
+        frame_agregar.pack(fill="x")
+        
+        ctk.CTkLabel(
+            frame_agregar,
+            text="Agregar Servicios",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=10, padx=10, anchor="w")
+        
+        # Combo de servicios disponibles
+        frame_combo = ctk.CTkFrame(frame_agregar, fg_color="transparent")
+        frame_combo.pack(fill="x", padx=10, pady=(0, 10))
+        
+        combo_servicios = ctk.CTkComboBox(
+            frame_combo,
+            values=["Cargando..."],
+            width=400
+        )
+        combo_servicios.pack(side="left", padx=(0, 10))
+        
+        var_recomendada = ctk.CTkCheckBox(
+            frame_combo,
+            text="Marcar como recomendada",
+            font=ctk.CTkFont(size=12)
+        )
+        var_recomendada.pack(side="left", padx=10)
+        
+        btn_agregar = ctk.CTkButton(
+            frame_combo,
+            text="+ Agregar",
+            command=lambda: agregar_servicio(),
+            width=100,
+            height=32,
+            fg_color=COLOR_SUCCESS
+        )
+        btn_agregar.pack(side="left")
+        
+        def cargar_servicios_disponibles():
+            servicios_disp = consultas.obtener_servicios_disponibles_para_maquina(maquina['id_maquina'])
+            if servicios_disp:
+                nombres = [f"{s['nombre_servicio']} - {s['unidad_cobro']}" for s in servicios_disp]
+                combo_servicios.configure(values=nombres)
+                combo_servicios.set(nombres[0])
+                combo_servicios._servicios_data = servicios_disp
+            else:
+                combo_servicios.configure(values=["No hay servicios disponibles"])
+                combo_servicios.set("No hay servicios disponibles")
+                combo_servicios._servicios_data = []
+        
+        def agregar_servicio():
+            if not hasattr(combo_servicios, '_servicios_data') or not combo_servicios._servicios_data:
+                messagebox.showwarning("Advertencia", "No hay servicios disponibles para asociar")
+                return
+            
+            idx = combo_servicios.cget("values").index(combo_servicios.get())
+            servicio_sel = combo_servicios._servicios_data[idx]
+            es_rec = var_recomendada.get()
+            
+            if consultas.asociar_servicio_a_maquina(maquina['id_maquina'], servicio_sel['id_servicio'], es_rec):
+                cargar_servicios_asociados()
+                cargar_servicios_disponibles()
+                var_recomendada.deselect()
+                messagebox.showinfo("Éxito", "Servicio asociado correctamente")
+            else:
+                messagebox.showwarning("Advertencia", "El servicio ya está asociado")
+        
+        # Cargar datos iniciales
+        cargar_servicios_asociados()
+        cargar_servicios_disponibles()
+        
+        # Botón cerrar
+        ctk.CTkButton(
+            dialogo,
+            text="Cerrar",
+            command=dialogo.destroy,
+            width=150,
+            height=40,
+            fg_color="gray"
+        ).pack(pady=10)
 

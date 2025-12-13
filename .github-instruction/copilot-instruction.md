@@ -369,7 +369,7 @@ ctk_path = os.path.dirname(customtkinter.__file__)
 files_to_include = [
     (ctk_path, "lib/customtkinter"), 
     # ("assets/logo.ico", "assets/logo.ico"), # Descomenta si tienes icono
-    # ("imprenta.db", "imprenta.db")          # Descomenta si ya tienes la DB creada
+    # ("base_de_imprenta.db", "base_de_imprenta.db")          # Descomenta si ya tienes la DB creada
 ]
 
 # Opciones de compilación
@@ -431,7 +431,7 @@ python setup.py bdist_msi
     ```python
     import os
     ruta_base = os.path.dirname(os.path.abspath(__file__))
-    ruta_db = os.path.join(ruta_base, "imprenta.db")
+    ruta_db = os.path.join(ruta_base, "base_de_imprenta.db")
     ```
 
 ¡Excelente iniciativa\! Organizar bien las carpetas desde el principio te ahorrará muchos dolores de cabeza cuando el proyecto crezca, especialmente ahora que tienes **Lógica de Negocio** (Reglas IF-THEN), **Base de Datos** y **Interfaz Gráfica**.

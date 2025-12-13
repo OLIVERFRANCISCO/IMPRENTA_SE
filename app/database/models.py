@@ -55,8 +55,12 @@ class Maquina(Base):
     nombre = Column(String, nullable=False)
     tipo = Column(String, nullable=False)
     
+    # FASE 3: Sugerencia/Recomendación de uso
+    sugerencia = Column(Text, default='')
+    
     # Relaciones
     servicios = relationship('Servicio', back_populates='maquina_sugerida')
+    servicios_compatibles = relationship('Servicio', secondary='maquinas_servicios', back_populates='maquinas_compatibles', viewonly=True)
     
     def __repr__(self):
         return f"<Maquina(id={self.id_maquina}, nombre='{self.nombre}', tipo='{self.tipo}')>"
@@ -65,7 +69,8 @@ class Maquina(Base):
         return {
             'id_maquina': self.id_maquina,
             'nombre': self.nombre,
-            'tipo': self.tipo
+            'tipo': self.tipo,
+            'sugerencia': self.sugerencia if self.sugerencia else ''
         }
 
 
@@ -74,39 +79,59 @@ class Material(Base):
     Modelo de Material (Inventario)
     
     Representa los materiales disponibles en inventario
+    Soporta dos tipos: 'unidad' y 'dimension'
     """
     __tablename__ = 'materiales'
     
     id_material = Column(Integer, primary_key=True, autoincrement=True)
     nombre_material = Column(String, nullable=False)
+    
+    # NUEVO: Tipo de material ('unidad' o 'dimension')
+    tipo_material = Column(String, default='unidad', nullable=False)
+    
+    # NUEVO: Sugerencia/Recomendación del material
+    sugerencia = Column(Text, default='')
+    
+    # Campos comunes
     cantidad_stock = Column(Float, nullable=False)
     unidad_medida = Column(String, nullable=False)
     stock_minimo = Column(Float, default=5.0)
     precio_por_unidad = Column(Float, default=0.0)
-    ancho_bobina = Column(Float, default=0.0)  # Para materiales en rollo (metros)
+    
+    # Para tipo 'dimension' (materiales en rollo/bobina)
+    ancho_bobina = Column(Float, default=0.0)  # Ancho disponible en metros
+    dimension_minima = Column(Float, default=0.0)  # Dimensión mínima vendible
+    dimension_disponible = Column(Float, default=0.0)  # Dimensión total disponible
     
     # Relaciones
     detalles_pedido = relationship('DetallePedido', back_populates='material')
     consumos = relationship('ConsumoMaterial', back_populates='material')
-    servicios = relationship('Servicio', secondary='servicios_materiales', back_populates='materiales')
+    servicios = relationship('Servicio', secondary='servicios_materiales', back_populates='materiales', viewonly=True)
     
     def __repr__(self):
-        return f"<Material(id={self.id_material}, nombre='{self.nombre_material}', stock={self.cantidad_stock})>"
+        return f"<Material(id={self.id_material}, tipo='{self.tipo_material}', nombre='{self.nombre_material}', stock={self.cantidad_stock})>"
     
     def to_dict(self):
         return {
             'id_material': self.id_material,
             'nombre_material': self.nombre_material,
+            'tipo_material': self.tipo_material,
+            'sugerencia': self.sugerencia if self.sugerencia else '',
             'cantidad_stock': self.cantidad_stock,
             'unidad_medida': self.unidad_medida,
             'stock_minimo': self.stock_minimo,
             'precio_por_unidad': self.precio_por_unidad,
-            'ancho_bobina': self.ancho_bobina if self.ancho_bobina else 0.0
+            'ancho_bobina': self.ancho_bobina if self.ancho_bobina else 0.0,
+            'dimension_minima': self.dimension_minima if self.dimension_minima else 0.0,
+            'dimension_disponible': self.dimension_disponible if self.dimension_disponible else 0.0
         }
     
     def esta_bajo_stock(self):
         """Verifica si el material está por debajo del stock mínimo"""
-        return self.cantidad_stock <= self.stock_minimo
+        if self.tipo_material == 'dimension':
+            return self.dimension_disponible <= self.dimension_minima
+        else:
+            return self.cantidad_stock <= self.stock_minimo
 
 
 class EstadoPedido(Base):
@@ -135,6 +160,62 @@ class EstadoPedido(Base):
         }
 
 
+class MaquinaServicio(Base):
+    """
+    Tabla de asociación entre Maquinas y Servicios (N:N)
+    
+    Permite definir qué máquinas son compatibles con cada servicio
+    """
+    __tablename__ = 'maquinas_servicios'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_maquina = Column(Integer, ForeignKey('maquinas.id_maquina'), nullable=False)
+    id_servicio = Column(Integer, ForeignKey('servicios.id_servicio'), nullable=False)
+    es_recomendada = Column(Integer, default=0)  # 0=normal, 1=recomendada
+    
+    # Restricción única para evitar duplicados
+    __table_args__ = (UniqueConstraint('id_maquina', 'id_servicio', name='uq_maquina_servicio'),)
+    
+    def __repr__(self):
+        return f"<MaquinaServicio(maquina={self.id_maquina}, servicio={self.id_servicio})>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_maquina': self.id_maquina,
+            'id_servicio': self.id_servicio,
+            'es_recomendada': bool(self.es_recomendada)
+        }
+
+
+class ServicioMaterial(Base):
+    """
+    Tabla de asociación entre Servicios y Materiales (N:N)
+    
+    Permite definir qué materiales son compatibles con cada servicio
+    """
+    __tablename__ = 'servicios_materiales'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_servicio = Column(Integer, ForeignKey('servicios.id_servicio'), nullable=False)
+    id_material = Column(Integer, ForeignKey('materiales.id_material'), nullable=False)
+    es_preferido = Column(Integer, default=0)  # 0=normal, 1=preferido
+    
+    # Restricción única para evitar duplicados
+    __table_args__ = (UniqueConstraint('id_servicio', 'id_material', name='uq_servicio_material'),)
+    
+    def __repr__(self):
+        return f"<ServicioMaterial(servicio={self.id_servicio}, material={self.id_material})>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_servicio': self.id_servicio,
+            'id_material': self.id_material,
+            'es_preferido': bool(self.es_preferido)
+        }
+
+
 class Servicio(Base):
     """
     Modelo de Servicio
@@ -152,7 +233,8 @@ class Servicio(Base):
     # Relaciones
     maquina_sugerida = relationship('Maquina', back_populates='servicios')
     detalles_pedido = relationship('DetallePedido', back_populates='servicio')
-    materiales = relationship('Material', secondary='servicios_materiales', back_populates='servicios')
+    materiales = relationship('Material', secondary='servicios_materiales', back_populates='servicios', viewonly=True)
+    maquinas_compatibles = relationship('Maquina', secondary='maquinas_servicios', back_populates='servicios_compatibles', viewonly=True)
     
     def __repr__(self):
         return f"<Servicio(id={self.id_servicio}, nombre='{self.nombre_servicio}')>"
@@ -164,28 +246,9 @@ class Servicio(Base):
             'unidad_cobro': self.unidad_cobro,
             'precio_base': self.precio_base,
             'id_maquina_sugerida': self.id_maquina_sugerida,
-            'nombre_maquina': self.maquina_sugerida.nombre if self.maquina_sugerida else None
+            'nombre_maquina': self.maquina_sugerida.nombre if self.maquina_sugerida else None,
+            'tipo_maquina': self.maquina_sugerida.tipo if self.maquina_sugerida else None
         }
-
-
-class ServicioMaterial(Base):
-    """
-    Modelo de relación Servicio-Material
-    
-    Tabla intermedia para la relación muchos a muchos
-    """
-    __tablename__ = 'servicios_materiales'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    id_servicio = Column(Integer, ForeignKey('servicios.id_servicio'), nullable=False)
-    id_material = Column(Integer, ForeignKey('materiales.id_material'), nullable=False)
-    
-    __table_args__ = (
-        UniqueConstraint('id_servicio', 'id_material', name='uq_servicio_material'),
-    )
-    
-    def __repr__(self):
-        return f"<ServicioMaterial(servicio={self.id_servicio}, material={self.id_material})>"
 
 
 class Pedido(Base):
@@ -449,63 +512,6 @@ class Permiso(Base):
             'panel': self.panel,
             'permiso': self.permiso
         }
-
-
-class ReglaExperto(Base):
-    """
-    Modelo de Regla del Sistema Experto
-    
-    Almacena las reglas IF-THEN del motor de inferencia
-    """
-    __tablename__ = 'reglas_experto'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    numero_regla = Column(String, nullable=False, unique=True)  # REGLA-01, REGLA-02, etc.
-    categoria = Column(String, nullable=False)  # 'maquina', 'material', 'tiempo', 'metraje', 'acabado', 'rentabilidad'
-    nombre = Column(String, nullable=False)  # Nombre descriptivo de la regla
-    descripcion = Column(Text, nullable=False)  # Descripción completa de la regla
-    
-    # Condiciones (IF) en formato JSON o texto estructurado
-    condiciones = Column(Text, nullable=False)  # JSON con las condiciones
-    
-    # Acciones (THEN) en formato JSON o texto estructurado
-    acciones = Column(Text, nullable=False)  # JSON con las acciones
-    
-    # Prioridad para resolver conflictos
-    prioridad = Column(Integer, default=1)  # 1 = más alta, 10 = más baja
-    
-    # Estado activo/inactivo
-    activa = Column(Integer, default=1)  # 1 = activa, 0 = inactiva
-    
-    # Metadatos
-    creada_por = Column(Integer, ForeignKey('usuarios.id'), nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.now)
-    fecha_modificacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relación con usuario creador
-    creador = relationship('Usuario', foreign_keys=[creada_por])
-    
-    def __repr__(self):
-        return f"<ReglaExperto(numero='{self.numero_regla}', categoria='{self.categoria}', activa={self.activa})>"
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'numero_regla': self.numero_regla,
-            'categoria': self.categoria,
-            'nombre': self.nombre,
-            'descripcion': self.descripcion,
-            'condiciones': self.condiciones,
-            'acciones': self.acciones,
-            'prioridad': self.prioridad,
-            'activa': bool(self.activa),
-            'creada_por': self.creada_por,
-            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
-            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None
-        }
-    
-    def __repr__(self):
-        return f"<Permiso(rol_id={self.rol_id}, panel='{self.panel}', permiso='{self.permiso}')>"
     
     def to_dict(self):
         return {

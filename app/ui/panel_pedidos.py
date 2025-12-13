@@ -475,14 +475,24 @@ class PanelPedidos(ctk.CTkFrame):
                 self.servicio_actual = servicio
                 break
 
-        # Filtrar materiales compatibles
+        # FASE 2: Filtrar materiales compatibles según asociaciones
         if self.servicio_actual:
             materiales = consultas.obtener_materiales_por_servicio(self.servicio_actual['id_servicio'])
             if materiales:
-                self.combo_material.configure(values=[m['nombre_material'] for m in materiales])
-                self.combo_material.set(materiales[0]['nombre_material'])
+                # Ordenar: preferidos primero
+                materiales_ordenados = sorted(materiales, key=lambda m: not m.get('es_preferido', False))
+                nombres = []
+                for m in materiales_ordenados:
+                    prefijo = "⭐ " if m.get('es_preferido') else ""
+                    nombres.append(f"{prefijo}{m['nombre_material']}")
+                
+                self.combo_material.configure(values=nombres)
+                self.combo_material.set(nombres[0])
+                self._materiales_filtrados = materiales_ordenados
             else:
+                # Si no hay materiales asociados, mostrar todos
                 self.combo_material.configure(values=self._obtener_nombres_materiales())
+                self._materiales_filtrados = None
 
         self._aplicar_logica_servicio(choice)
 
@@ -639,14 +649,17 @@ class PanelPedidos(ctk.CTkFrame):
         """Selecciona rollo óptimo según dimensiones y material"""
         try:
             ancho_str = self.entry_ancho.get()
-            material = self.combo_material.get()
+            material_nombre = self.combo_material.get()
 
-            if not ancho_str or not material:
+            if not ancho_str or not material_nombre:
                 self.frame_rollo_info.grid_remove()
                 return
 
+            # FASE 2: Limpiar prefijos de preferido
+            material_limpio = material_nombre.replace("⭐ ", "").strip()
+            
             ancho = float(ancho_str)
-            materiales_disp = consultas.obtener_materiales_por_tipo_y_ancho(material)
+            materiales_disp = consultas.obtener_materiales_por_tipo_y_ancho(material_limpio)
 
             if not materiales_disp:
                 self.frame_rollo_info.grid_remove()
@@ -803,6 +816,9 @@ class PanelPedidos(ctk.CTkFrame):
                     messagebox.showwarning(f"{IconoSVG.ALERTA} Validación", "La descripción es obligatoria para llaveros")
                     return
 
+            # Obtener material (limpiar prefijos de preferido)
+            material_nombre = self.combo_material.get().replace("⭐ ", "").strip()
+            
             # Obtener precio
             precio_texto = self.label_precio.cget("text")
             precio_total = float(precio_texto.split("S/ ")[1])

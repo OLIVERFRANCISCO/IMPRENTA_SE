@@ -140,11 +140,21 @@ class PanelServicios(ctk.CTkFrame):
         frame_acciones = ctk.CTkFrame(frame_fila, fg_color="transparent")
         frame_acciones.grid(row=0, column=5, padx=10, pady=5)
 
+        btn_materiales = ctk.CTkButton(
+            frame_acciones,
+            text="🔗 Materiales",
+            command=lambda s=servicio: self._gestionar_materiales_servicio(s),
+            width=100,
+            height=30,
+            fg_color="#2196F3"
+        )
+        btn_materiales.pack(side="left", padx=2)
+
         btn_editar = ctk.CTkButton(
             frame_acciones,
             text="Editar",
             command=lambda s=servicio: self._editar_servicio(s),
-            width=80,
+            width=70,
             height=30,
             fg_color=COLOR_PRIMARY
         )
@@ -154,7 +164,7 @@ class PanelServicios(ctk.CTkFrame):
             frame_acciones,
             text="Eliminar",
             command=lambda s=servicio: self._confirmar_eliminar_servicio(s),
-            width=80,
+            width=70,
             height=30,
             fg_color=COLOR_DANGER
         )
@@ -315,6 +325,256 @@ class PanelServicios(ctk.CTkFrame):
         )
         btn_cancelar.pack(side="left", padx=10)
 
+        btn_confirmar = ctk.CTkButton(
+            frame_botones,
+            text="Eliminar",
+            command=eliminar,
+            width=120,
+            height=40,
+            fg_color=COLOR_DANGER
+        )
+        btn_confirmar.pack(side="left", padx=10)
+    
+    def _gestionar_materiales_servicio(self, servicio):
+        """Diálogo para gestionar materiales asociados a un servicio"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title(f"Materiales - {servicio['nombre_servicio']}")
+        dialogo.geometry("800x600")
+        dialogo.transient(self)
+        dialogo.grab_set()
+        
+        # Centrar ventana
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (800 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (600 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+        
+        # Frame principal con scroll
+        frame_principal = ctk.CTkScrollableFrame(dialogo, fg_color="transparent")
+        frame_principal.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Título
+        ctk.CTkLabel(
+            frame_principal,
+            text=f"Gestionar Materiales para: {servicio['nombre_servicio']}",
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(pady=(0, 20))
+        
+        # === SECCIÓN: MATERIALES ASOCIADOS ===
+        frame_asociados = ctk.CTkFrame(frame_principal, fg_color="gray20")
+        frame_asociados.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(
+            frame_asociados,
+            text="Materiales Asociados",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=10, padx=10, anchor="w")
+        
+        # Lista de materiales asociados
+        frame_lista_asociados = ctk.CTkFrame(frame_asociados, fg_color="transparent")
+        frame_lista_asociados.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        def cargar_materiales_asociados():
+            # Limpiar lista
+            for widget in frame_lista_asociados.winfo_children():
+                widget.destroy()
+            
+            materiales = consultas.obtener_materiales_por_servicio(servicio['id_servicio'])
+            
+            if not materiales:
+                ctk.CTkLabel(
+                    frame_lista_asociados,
+                    text="No hay materiales asociados",
+                    text_color="gray"
+                ).pack(pady=10)
+                return
+            
+            for material in materiales:
+                frame_mat = ctk.CTkFrame(frame_lista_asociados, fg_color="gray25")
+                frame_mat.pack(fill="x", pady=2)
+                
+                # Indicador de preferido
+                icono = "⭐" if material.get('es_preferido') else "📦"
+                
+                ctk.CTkLabel(
+                    frame_mat,
+                    text=f"{icono} {material['nombre_material']} ({material['unidad_medida']})",
+                    font=ctk.CTkFont(size=12)
+                ).pack(side="left", padx=10, pady=8)
+                
+                # Botón marcar/desmarcar preferido
+                btn_preferido = ctk.CTkButton(
+                    frame_mat,
+                    text="★ Preferido" if not material.get('es_preferido') else "☆ Normal",
+                    command=lambda m=material: toggle_preferido(m),
+                    width=100,
+                    height=25,
+                    fg_color="#FF9800" if not material.get('es_preferido') else "gray"
+                )
+                btn_preferido.pack(side="right", padx=2)
+                
+                # Botón eliminar asociación
+                btn_quitar = ctk.CTkButton(
+                    frame_mat,
+                    text="Quitar",
+                    command=lambda m=material: quitar_material(m),
+                    width=70,
+                    height=25,
+                    fg_color=COLOR_DANGER
+                )
+                btn_quitar.pack(side="right", padx=2)
+        
+        def toggle_preferido(material):
+            nuevo_estado = not material.get('es_preferido', False)
+            if consultas.marcar_material_preferido(servicio['id_servicio'], material['id_material'], nuevo_estado):
+                cargar_materiales_asociados()
+        
+        def quitar_material(material):
+            if consultas.desasociar_material_de_servicio(servicio['id_servicio'], material['id_material']):
+                cargar_materiales_asociados()
+                cargar_materiales_disponibles()
+                messagebox.showinfo("Éxito", "Material desasociado correctamente")
+        
+        # === SECCIÓN: AGREGAR MATERIALES ===
+        frame_agregar = ctk.CTkFrame(frame_principal, fg_color="gray20")
+        frame_agregar.pack(fill="x")
+        
+        ctk.CTkLabel(
+            frame_agregar,
+            text="Agregar Materiales",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=10, padx=10, anchor="w")
+        
+        # Combo de materiales disponibles
+        frame_combo = ctk.CTkFrame(frame_agregar, fg_color="transparent")
+        frame_combo.pack(fill="x", padx=10, pady=(0, 10))
+        
+        combo_materiales = ctk.CTkComboBox(
+            frame_combo,
+            values=["Cargando..."],
+            width=400
+        )
+        combo_materiales.pack(side="left", padx=(0, 10))
+        
+        var_preferido = ctk.CTkCheckBox(
+            frame_combo,
+            text="Marcar como preferido",
+            font=ctk.CTkFont(size=12)
+        )
+        var_preferido.pack(side="left", padx=10)
+        
+        btn_agregar = ctk.CTkButton(
+            frame_combo,
+            text="+ Agregar",
+            command=lambda: agregar_material(),
+            width=100,
+            height=32,
+            fg_color=COLOR_SUCCESS
+        )
+        btn_agregar.pack(side="left")
+        
+        def cargar_materiales_disponibles():
+            materiales_disp = consultas.obtener_materiales_disponibles_para_servicio(servicio['id_servicio'])
+            if materiales_disp:
+                nombres = [f"{m['nombre_material']} ({m['tipo_material']})" for m in materiales_disp]
+                combo_materiales.configure(values=nombres)
+                combo_materiales.set(nombres[0])
+                combo_materiales._materiales_data = materiales_disp
+            else:
+                combo_materiales.configure(values=["No hay materiales disponibles"])
+                combo_materiales.set("No hay materiales disponibles")
+                combo_materiales._materiales_data = []
+        
+        def agregar_material():
+            if not hasattr(combo_materiales, '_materiales_data') or not combo_materiales._materiales_data:
+                messagebox.showwarning("Advertencia", "No hay materiales disponibles para asociar")
+                return
+            
+            idx = combo_materiales.cget("values").index(combo_materiales.get())
+            material_sel = combo_materiales._materiales_data[idx]
+            es_pref = var_preferido.get()
+            
+            if consultas.asociar_material_a_servicio(servicio['id_servicio'], material_sel['id_material'], es_pref):
+                cargar_materiales_asociados()
+                cargar_materiales_disponibles()
+                var_preferido.deselect()
+                messagebox.showinfo("Éxito", "Material asociado correctamente")
+            else:
+                messagebox.showwarning("Advertencia", "El material ya está asociado")
+        
+        # Cargar datos iniciales
+        cargar_materiales_asociados()
+        cargar_materiales_disponibles()
+        
+        # Botón cerrar
+        ctk.CTkButton(
+            dialogo,
+            text="Cerrar",
+            command=dialogo.destroy,
+            width=150,
+            height=40,
+            fg_color="gray"
+        ).pack(pady=10)
+    
+    def _editar_servicio(self, servicio):
+        """Abre el diálogo de edición de servicio"""
+        self._mostrar_dialogo_servicio(servicio)
+    
+    def _confirmar_eliminar_servicio(self, servicio):
+        """Muestra confirmación antes de eliminar servicio"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Confirmar Eliminación")
+        dialogo.geometry("450x200")
+        dialogo.transient(self)
+        dialogo.grab_set()
+        
+        # Centrar ventana
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (200 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+        
+        ctk.CTkLabel(
+            dialogo,
+            text="¿Está seguro de eliminar este servicio?",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(30, 10))
+        
+        ctk.CTkLabel(
+            dialogo,
+            text=f"Servicio: {servicio['nombre_servicio']}",
+            font=ctk.CTkFont(size=14)
+        ).pack(pady=5)
+        
+        ctk.CTkLabel(
+            dialogo,
+            text="Esta acción no se puede deshacer.",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack(pady=10)
+        
+        frame_botones = ctk.CTkFrame(dialogo, fg_color="transparent")
+        frame_botones.pack(pady=20)
+        
+        def eliminar():
+            try:
+                consultas.eliminar_servicio(servicio['id_servicio'])
+                messagebox.showinfo("Éxito", "Servicio eliminado correctamente")
+                dialogo.destroy()
+                self._cargar_servicios()
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo eliminar el servicio: {str(e)}")
+        
+        btn_cancelar = ctk.CTkButton(
+            frame_botones,
+            text="Cancelar",
+            command=dialogo.destroy,
+            width=120,
+            height=40,
+            fg_color="gray"
+        )
+        btn_cancelar.pack(side="left", padx=10)
+        
         btn_confirmar = ctk.CTkButton(
             frame_botones,
             text="Sí, Eliminar",

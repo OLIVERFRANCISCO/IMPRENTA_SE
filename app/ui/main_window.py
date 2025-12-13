@@ -15,7 +15,6 @@ from app.ui.panel_pedidos_clientes import PanelPedidosClientes
 from app.ui.panel_maquinas import PanelMaquinas
 from app.ui.panel_admin import PanelAdmin
 from app.ui.panel_perfil import PanelPerfil
-from app.ui.panel_reglas_experto import PanelReglasExperto
 
 
 class ImprentaApp(ctk.CTk):
@@ -228,9 +227,6 @@ class ImprentaApp(ctk.CTk):
             config_botones.append(
                 ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 10, 'panel_admin')
             )
-            config_botones.append(
-                ("Reglas Experto", self.ICONOS['reglas'], self.mostrar_panel_reglas, 11, None)
-            )
         
         # Agregar perfil (disponible para todos)
         config_botones.append(
@@ -399,13 +395,6 @@ class ImprentaApp(ctk.CTk):
     def mostrar_panel_perfil(self):
         """Muestra el panel de perfil de usuario (todos)"""
         self._mostrar_panel(PanelPerfil, 'btn_perfil')
-    
-    def mostrar_panel_reglas(self):
-        """Muestra el panel de reglas del sistema experto (solo admin)"""
-        if not auth_service.is_admin():
-            messagebox.showerror("Acceso Denegado", "Solo los administradores pueden gestionar reglas del sistema")
-            return
-        self._mostrar_panel(PanelReglasExperto, 'btn_reglas')
     
     def _mostrar_panel_inicial(self):
         """Muestra el primer panel al que el usuario tiene acceso"""

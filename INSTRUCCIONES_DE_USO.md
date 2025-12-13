@@ -81,7 +81,7 @@ Imprenta_SE/
 ├── fix_tkinter.py             🔧 Reparador de Tkinter
 ├── requirements.txt           📋 Dependencias
 ├── README.md                  📖 Documentación general
-├── imprenta.db               💾 Base de datos SQLite (se crea automáticamente)
+├── base_de_imprenta.db               💾 Base de datos SQLite (se crea automáticamente)
 │
 ├── app/
 │   ├── config.py             ⚙️ Configuración global (colores, constantes)
@@ -293,7 +293,7 @@ pip install --upgrade customtkinter
 ### **Problema 4: Base de datos corrupta**
 ```powershell
 # Eliminar la base de datos y reiniciar
-del imprenta.db
+del base_de_imprenta.db
 python main.py
 ```
 

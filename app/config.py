@@ -8,7 +8,7 @@ from pathlib import Path
 # ========== RUTAS DEL PROYECTO ==========
 BASE_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = BASE_DIR / "assets"
-DB_PATH = BASE_DIR / "imprenta.db"
+DB_PATH = BASE_DIR / "base_de_imprenta.db"
 
 # ========== CONFIGURACIÓN DE LA INTERFAZ ==========
 # Colores del tema

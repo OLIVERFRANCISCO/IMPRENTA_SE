@@ -259,7 +259,7 @@ class PanelAdmin(ctk.CTkFrame):
         """Muestra diálogo para crear usuario"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Nuevo Usuario")
-        dialogo.geometry("450x500")
+        dialogo.geometry("450x600")
         dialogo.transient(self)
         dialogo.grab_set()
         
@@ -487,7 +487,7 @@ class PanelAdmin(ctk.CTkFrame):
         """Muestra diálogo para cambiar contraseña"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Cambiar Contraseña")
-        dialogo.geometry("450x350")
+        dialogo.geometry("450x450")
         dialogo.transient(self)
         dialogo.grab_set()
         

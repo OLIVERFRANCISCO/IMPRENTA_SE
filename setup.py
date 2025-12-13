@@ -21,7 +21,7 @@ files_to_include = [
     (ctk_path, "lib/customtkinter"),
     # Agregar aquí otros archivos si es necesario:
     # ("assets/", "assets/"),
-    # ("imprenta.db", "imprenta.db"),
+    # ("base_de_imprenta.db", "base_de_imprenta.db"),
 ]
 
 # ========== OPCIONES DE COMPILACIÓN ==========
@@ -36,6 +36,12 @@ build_exe_options = {
         "pathlib",
         "PIL",  # Pillow, requerido por CustomTkinter
         "darkdetect",  # Requerido por CustomTkinter
+        "sqlalchemy",  # SQLAlchemy ORM
+        "sqlalchemy.dialects.sqlite",  # Dialecto SQLite (CRÍTICO)
+        "sqlalchemy.orm",  # ORM de SQLAlchemy
+        "sqlalchemy.ext.declarative",  # Declarative base
+        "openpyxl",  # Para exportación Excel
+        "reportlab",  # Para reportes PDF
     ],
     "include_files": files_to_include,
     "excludes": ["matplotlib", "numpy", "pandas"],  # Excluir paquetes pesados innecesarios
@@ -72,7 +78,7 @@ executables = [
 # ========== SETUP ==========
 setup(
     name="Sistema Imprenta Expert",
-    version="1.5.1",
+    version="1.6.1",
     description="Sistema Experto de Gestión para Imprenta",
     author="Oliver",
     options={

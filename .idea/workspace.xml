@@ -5,21 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2cf5dfb0-03bb-4778-851c-e361ed696557" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/database/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/database/conexion.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/conexion.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/database/consultas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/database/consultas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/logic/calculos.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/calculos.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/logic/reglas_experto.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/logic/reglas_experto.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/main_window.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/main_window.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_clientes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_inventario.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_inventario.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_pedidos_clientes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/ui/panel_servicios.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_servicios.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/ui/panel_admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui/panel_admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/exe.win-amd64-3.13/ImprentaExpert.exe" beforeDir="false" afterPath="$PROJECT_DIR$/build/exe.win-amd64-3.13/ImprentaExpert.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/exe.win-amd64-3.13/lib/library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/exe.win-amd64-3.13/lib/library.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/Sistema Imprenta Expert-1.5.1-win64.msi" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/base_de_imprenta.db" beforeDir="false" afterPath="$PROJECT_DIR$/base_de_imprenta.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

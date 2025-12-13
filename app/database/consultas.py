@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database.conexion import get_session
 from app.database.models import (
     Cliente, Maquina, Material, EstadoPedido, Servicio, 
-    Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial
+    Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial, MaquinaServicio
 )
 
 
@@ -395,6 +395,26 @@ def actualizar_stock_material(id_material, cantidad):
         session.close()
 
 
+def obtener_materiales_por_tipo(tipo_material='unidad'):
+    """
+    Obtiene materiales filtrados por tipo
+    
+    Args:
+        tipo_material: 'unidad' o 'dimension'
+        
+    Returns:
+        list: Lista de diccionarios con datos de materiales
+    """
+    session = get_session()
+    try:
+        materiales = session.query(Material).filter(Material.tipo_material == tipo_material).all()
+        return [mat.to_dict() for mat in materiales]
+    except SQLAlchemyError as e:
+        raise Exception(f"Error al obtener materiales por tipo: {str(e)}")
+    finally:
+        session.close()
+
+
 def descontar_stock_material(id_material, cantidad_usada):
     """
     Descuenta stock de un material (resta la cantidad)
@@ -411,6 +431,9 @@ def descontar_stock_material(id_material, cantidad_usada):
         material = session.query(Material).filter(Material.id_material == id_material).first()
         if material:
             material.cantidad_stock -= cantidad_usada
+            # Si es tipo dimension, también actualizar dimension_disponible
+            if material.tipo_material == 'dimension':
+                material.dimension_disponible -= cantidad_usada
             session.commit()
             return True
         return False
@@ -421,7 +444,9 @@ def descontar_stock_material(id_material, cantidad_usada):
         session.close()
 
 
-def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0):
+def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0, 
+                    tipo_material='unidad', sugerencia='', ancho_bobina=0.0,
+                    dimension_minima=0.0, dimension_disponible=0.0):
     """
     Crea un nuevo material
     
@@ -431,6 +456,11 @@ def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0):
         unidad: Unidad de medida
         stock_minimo: Stock mínimo para alertas
         precio: Precio por unidad
+        tipo_material: 'unidad' o 'dimension'
+        sugerencia: Descripción/recomendación del material
+        ancho_bobina: Para materiales en rollo (solo si tipo='dimension')
+        dimension_minima: Dimensión mínima (solo si tipo='dimension')
+        dimension_disponible: Dimensión total disponible (solo si tipo='dimension')
         
     Returns:
         int: ID del material creado
@@ -439,10 +469,15 @@ def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0):
     try:
         material = Material(
             nombre_material=nombre,
+            tipo_material=tipo_material,
+            sugerencia=sugerencia,
             cantidad_stock=cantidad,
             unidad_medida=unidad,
             stock_minimo=stock_minimo,
-            precio_por_unidad=precio
+            precio_por_unidad=precio,
+            ancho_bobina=ancho_bobina,
+            dimension_minima=dimension_minima,
+            dimension_disponible=dimension_disponible
         )
         session.add(material)
         session.commit()
@@ -454,7 +489,9 @@ def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0):
         session.close()
 
 
-def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, precio):
+def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, precio,
+                       tipo_material='unidad', sugerencia='', ancho_bobina=0.0,
+                       dimension_minima=0.0, dimension_disponible=0.0):
     """
     Actualiza un material existente
     
@@ -465,6 +502,11 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         unidad: Nueva unidad de medida
         stock_minimo: Nuevo stock mínimo
         precio: Nuevo precio
+        tipo_material: 'unidad' o 'dimension'
+        sugerencia: Descripción/recomendación
+        ancho_bobina: Ancho de bobina (si es tipo dimension)
+        dimension_minima: Dimensión mínima
+        dimension_disponible: Dimensión disponible
         
     Returns:
         bool: True si se actualizó correctamente
@@ -474,10 +516,15 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         material = session.query(Material).filter(Material.id_material == id_material).first()
         if material:
             material.nombre_material = nombre
+            material.tipo_material = tipo_material
+            material.sugerencia = sugerencia
             material.cantidad_stock = cantidad
             material.unidad_medida = unidad
             material.stock_minimo = stock_minimo
             material.precio_por_unidad = precio
+            material.ancho_bobina = ancho_bobina
+            material.dimension_minima = dimension_minima
+            material.dimension_disponible = dimension_disponible
             session.commit()
             return True
         return False
@@ -488,9 +535,52 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         session.close()
 
 
-def actualizar_material_con_ancho(id_material, nombre, cantidad, unidad, stock_minimo, precio, ancho_bobina):
+def guardar_nuevo_rollo(nombre, ancho_bobina, cantidad, unidad, stock_minimo=5, precio=0, 
+                       sugerencia='', dimension_minima=0.0):
     """
-    Actualiza un material incluyendo el ancho de bobina (para materiales en rollo)
+    Crea un nuevo material en formato de rollo (tipo dimension)
+    
+    Args:
+        nombre: Nombre del material/rollo
+        ancho_bobina: Ancho de la bobina en metros
+        cantidad: Cantidad inicial en stock (metros)
+        unidad: Unidad de medida (metros, rollos)
+        stock_minimo: Stock mínimo para alertas
+        precio: Precio por unidad
+        sugerencia: Descripción/recomendación del material
+        dimension_minima: Dimensión mínima vendible
+        
+    Returns:
+        int: ID del material creado
+    """
+    session = get_session()
+    try:
+        material = Material(
+            nombre_material=nombre,
+            tipo_material='dimension',  # Los rollos son tipo dimension
+            sugerencia=sugerencia,
+            cantidad_stock=cantidad,
+            unidad_medida=unidad,
+            stock_minimo=stock_minimo,
+            precio_por_unidad=precio,
+            ancho_bobina=ancho_bobina,
+            dimension_minima=dimension_minima if dimension_minima > 0 else ancho_bobina,
+            dimension_disponible=cantidad
+        )
+        session.add(material)
+        session.commit()
+        return material.id_material
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar rollo: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_material_con_ancho(id_material, nombre, cantidad, unidad, stock_minimo, precio, ancho_bobina,
+                                 sugerencia='', dimension_minima=0.0):
+    """
+    Actualiza un material incluyendo el ancho de bobina (para materiales tipo dimension)
     
     Args:
         id_material: ID del material a actualizar
@@ -500,13 +590,34 @@ def actualizar_material_con_ancho(id_material, nombre, cantidad, unidad, stock_m
         stock_minimo: Nuevo stock mínimo
         precio: Nuevo precio
         ancho_bobina: Ancho de la bobina en metros
+        sugerencia: Descripción/recomendación
+        dimension_minima: Dimensión mínima vendible
         
     Returns:
         bool: True si se actualizó correctamente
     """
-    # Esta función se mantiene por compatibilidad pero el modelo ORM no incluye ancho_bobina
-    # Si se requiere, agregar el campo al modelo Material
-    return actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, precio)
+    session = get_session()
+    try:
+        material = session.query(Material).filter(Material.id_material == id_material).first()
+        if material:
+            material.nombre_material = nombre
+            material.tipo_material = 'dimension'  # Con ancho_bobina es tipo dimension
+            material.sugerencia = sugerencia
+            material.cantidad_stock = cantidad
+            material.unidad_medida = unidad
+            material.stock_minimo = stock_minimo
+            material.precio_por_unidad = precio
+            material.ancho_bobina = ancho_bobina
+            material.dimension_minima = dimension_minima if dimension_minima > 0 else ancho_bobina
+            material.dimension_disponible = cantidad
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar material con ancho: {str(e)}")
+    finally:
+        session.close()
 
 
 def eliminar_material(id_material):
@@ -845,20 +956,21 @@ def obtener_maquina_por_id(id_maquina):
         session.close()
 
 
-def guardar_maquina(nombre, tipo):
+def guardar_maquina(nombre, tipo, sugerencia=''):
     """
     Crea una nueva máquina
     
     Args:
         nombre: Nombre de la máquina
         tipo: Tipo de máquina
+        sugerencia: Recomendación de uso
         
     Returns:
         int: ID de la máquina creada
     """
     session = get_session()
     try:
-        maquina = Maquina(nombre=nombre, tipo=tipo)
+        maquina = Maquina(nombre=nombre, tipo=tipo, sugerencia=sugerencia)
         session.add(maquina)
         session.commit()
         return maquina.id_maquina
@@ -869,7 +981,7 @@ def guardar_maquina(nombre, tipo):
         session.close()
 
 
-def actualizar_maquina(id_maquina, nombre, tipo):
+def actualizar_maquina(id_maquina, nombre, tipo, sugerencia=''):
     """
     Actualiza una máquina existente
     
@@ -877,6 +989,7 @@ def actualizar_maquina(id_maquina, nombre, tipo):
         id_maquina: ID de la máquina
         nombre: Nuevo nombre
         tipo: Nuevo tipo
+        sugerencia: Recomendación de uso
         
     Returns:
         bool: True si se actualizó correctamente
@@ -887,6 +1000,7 @@ def actualizar_maquina(id_maquina, nombre, tipo):
         if maquina:
             maquina.nombre = nombre
             maquina.tipo = tipo
+            maquina.sugerencia = sugerencia
             session.commit()
             return True
         return False
@@ -1113,5 +1227,375 @@ def obtener_pedidos_filtrados(filtro_estado=None, fecha_ingreso_desde=None,
             'total_paginas': total_paginas,
             'items_por_pagina': items_por_pagina
         }
+    finally:
+        session.close()
+
+
+# ========== RELACIÓN SERVICIO ↔ MATERIAL ==========
+
+def asociar_material_a_servicio(id_servicio, id_material, es_preferido=False):
+    """
+    Asocia un material a un servicio
+    
+    Args:
+        id_servicio: ID del servicio
+        id_material: ID del material
+        es_preferido: Si es un material preferido (True/False)
+        
+    Returns:
+        bool: True si se asoció correctamente, False si ya existe
+    """
+    session = get_session()
+    try:
+        # Verificar si ya existe la asociación
+        existe = session.query(ServicioMaterial).filter(
+            ServicioMaterial.id_servicio == id_servicio,
+            ServicioMaterial.id_material == id_material
+        ).first()
+        
+        if existe:
+            return False
+        
+        # Crear nueva asociación
+        asociacion = ServicioMaterial(
+            id_servicio=id_servicio,
+            id_material=id_material,
+            es_preferido=1 if es_preferido else 0
+        )
+        session.add(asociacion)
+        session.commit()
+        return True
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def desasociar_material_de_servicio(id_servicio, id_material):
+    """
+    Elimina la asociación entre un servicio y un material
+    
+    Args:
+        id_servicio: ID del servicio
+        id_material: ID del material
+        
+    Returns:
+        bool: True si se eliminó correctamente
+    """
+    session = get_session()
+    try:
+        asociacion = session.query(ServicioMaterial).filter(
+            ServicioMaterial.id_servicio == id_servicio,
+            ServicioMaterial.id_material == id_material
+        ).first()
+        
+        if asociacion:
+            session.delete(asociacion)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def obtener_materiales_por_servicio(id_servicio, solo_preferidos=False):
+    """
+    Obtiene los materiales asociados a un servicio
+    
+    Args:
+        id_servicio: ID del servicio
+        solo_preferidos: Si True, solo retorna materiales preferidos
+        
+    Returns:
+        list: Lista de diccionarios con datos de materiales y su asociación
+    """
+    session = get_session()
+    try:
+        query = session.query(Material, ServicioMaterial).join(
+            ServicioMaterial,
+            Material.id_material == ServicioMaterial.id_material
+        ).filter(ServicioMaterial.id_servicio == id_servicio)
+        
+        if solo_preferidos:
+            query = query.filter(ServicioMaterial.es_preferido == 1)
+        
+        resultados = query.all()
+        
+        materiales = []
+        for material, asociacion in resultados:
+            material_dict = material.to_dict()
+            material_dict['es_preferido'] = bool(asociacion.es_preferido)
+            materiales.append(material_dict)
+        
+        return materiales
+    finally:
+        session.close()
+
+
+def obtener_servicios_por_material(id_material):
+    """
+    Obtiene los servicios que usan un material específico
+    
+    Args:
+        id_material: ID del material
+        
+    Returns:
+        list: Lista de diccionarios con datos de servicios
+    """
+    session = get_session()
+    try:
+        servicios = session.query(Servicio).join(
+            ServicioMaterial,
+            Servicio.id_servicio == ServicioMaterial.id_servicio
+        ).filter(ServicioMaterial.id_material == id_material).all()
+        
+        return [servicio.to_dict() for servicio in servicios]
+    finally:
+        session.close()
+
+
+def marcar_material_preferido(id_servicio, id_material, es_preferido=True):
+    """
+    Marca o desmarca un material como preferido para un servicio
+    
+    Args:
+        id_servicio: ID del servicio
+        id_material: ID del material
+        es_preferido: True para marcar como preferido, False para normal
+        
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    session = get_session()
+    try:
+        asociacion = session.query(ServicioMaterial).filter(
+            ServicioMaterial.id_servicio == id_servicio,
+            ServicioMaterial.id_material == id_material
+        ).first()
+        
+        if asociacion:
+            asociacion.es_preferido = 1 if es_preferido else 0
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def obtener_materiales_disponibles_para_servicio(id_servicio):
+    """
+    Obtiene materiales NO asociados a un servicio (disponibles para asociar)
+    
+    Args:
+        id_servicio: ID del servicio
+        
+    Returns:
+        list: Lista de materiales no asociados
+    """
+    session = get_session()
+    try:
+        # Subconsulta de IDs de materiales ya asociados
+        ids_asociados = session.query(ServicioMaterial.id_material).filter(
+            ServicioMaterial.id_servicio == id_servicio
+        ).subquery()
+        
+        # Materiales que NO están en la lista de asociados
+        materiales = session.query(Material).filter(
+            ~Material.id_material.in_(ids_asociados)
+        ).order_by(Material.nombre_material).all()
+        
+        return [material.to_dict() for material in materiales]
+    finally:
+        session.close()
+
+
+# ========== RELACIÓN MAQUINA ↔ SERVICIO ==========
+
+def asociar_servicio_a_maquina(id_maquina, id_servicio, es_recomendada=False):
+    """
+    Asocia un servicio a una máquina
+    
+    Args:
+        id_maquina: ID de la máquina
+        id_servicio: ID del servicio
+        es_recomendada: Si es una máquina recomendada para el servicio (True/False)
+        
+    Returns:
+        bool: True si se asoció correctamente, False si ya existe
+    """
+    session = get_session()
+    try:
+        # Verificar si ya existe la asociación
+        existe = session.query(MaquinaServicio).filter(
+            MaquinaServicio.id_maquina == id_maquina,
+            MaquinaServicio.id_servicio == id_servicio
+        ).first()
+        
+        if existe:
+            return False
+        
+        # Crear nueva asociación
+        asociacion = MaquinaServicio(
+            id_maquina=id_maquina,
+            id_servicio=id_servicio,
+            es_recomendada=1 if es_recomendada else 0
+        )
+        session.add(asociacion)
+        session.commit()
+        return True
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def desasociar_servicio_de_maquina(id_maquina, id_servicio):
+    """
+    Elimina la asociación entre una máquina y un servicio
+    
+    Args:
+        id_maquina: ID de la máquina
+        id_servicio: ID del servicio
+        
+    Returns:
+        bool: True si se eliminó correctamente
+    """
+    session = get_session()
+    try:
+        asociacion = session.query(MaquinaServicio).filter(
+            MaquinaServicio.id_maquina == id_maquina,
+            MaquinaServicio.id_servicio == id_servicio
+        ).first()
+        
+        if asociacion:
+            session.delete(asociacion)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def obtener_servicios_por_maquina(id_maquina, solo_recomendados=False):
+    """
+    Obtiene los servicios asociados a una máquina
+    
+    Args:
+        id_maquina: ID de la máquina
+        solo_recomendados: Si True, solo retorna servicios recomendados
+        
+    Returns:
+        list: Lista de diccionarios con datos de servicios y su asociación
+    """
+    session = get_session()
+    try:
+        query = session.query(Servicio, MaquinaServicio).join(
+            MaquinaServicio,
+            Servicio.id_servicio == MaquinaServicio.id_servicio
+        ).filter(MaquinaServicio.id_maquina == id_maquina)
+        
+        if solo_recomendados:
+            query = query.filter(MaquinaServicio.es_recomendada == 1)
+        
+        resultados = query.all()
+        
+        servicios = []
+        for servicio, asociacion in resultados:
+            servicio_dict = servicio.to_dict()
+            servicio_dict['es_recomendada'] = bool(asociacion.es_recomendada)
+            servicios.append(servicio_dict)
+        
+        return servicios
+    finally:
+        session.close()
+
+
+def obtener_maquinas_por_servicio(id_servicio):
+    """
+    Obtiene las máquinas que pueden realizar un servicio específico
+    
+    Args:
+        id_servicio: ID del servicio
+        
+    Returns:
+        list: Lista de diccionarios con datos de máquinas
+    """
+    session = get_session()
+    try:
+        maquinas = session.query(Maquina).join(
+            MaquinaServicio,
+            Maquina.id_maquina == MaquinaServicio.id_maquina
+        ).filter(MaquinaServicio.id_servicio == id_servicio).all()
+        
+        return [maquina.to_dict() for maquina in maquinas]
+    finally:
+        session.close()
+
+
+def marcar_maquina_recomendada(id_maquina, id_servicio, es_recomendada=True):
+    """
+    Marca o desmarca una máquina como recomendada para un servicio
+    
+    Args:
+        id_maquina: ID de la máquina
+        id_servicio: ID del servicio
+        es_recomendada: True para marcar como recomendada, False para normal
+        
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    session = get_session()
+    try:
+        asociacion = session.query(MaquinaServicio).filter(
+            MaquinaServicio.id_maquina == id_maquina,
+            MaquinaServicio.id_servicio == id_servicio
+        ).first()
+        
+        if asociacion:
+            asociacion.es_recomendada = 1 if es_recomendada else 0
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def obtener_servicios_disponibles_para_maquina(id_maquina):
+    """
+    Obtiene servicios NO asociados a una máquina (disponibles para asociar)
+    
+    Args:
+        id_maquina: ID de la máquina
+        
+    Returns:
+        list: Lista de servicios no asociados
+    """
+    session = get_session()
+    try:
+        # Subconsulta de IDs de servicios ya asociados
+        ids_asociados = session.query(MaquinaServicio.id_servicio).filter(
+            MaquinaServicio.id_maquina == id_maquina
+        ).subquery()
+        
+        # Servicios que NO están en la lista de asociados
+        servicios = session.query(Servicio).filter(
+            ~Servicio.id_servicio.in_(ids_asociados)
+        ).order_by(Servicio.nombre_servicio).all()
+        
+        return [servicio.to_dict() for servicio in servicios]
     finally:
         session.close()
