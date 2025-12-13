@@ -11,9 +11,10 @@ from cx_Freeze import setup, Executable
 try:
     import customtkinter
     ctk_path = os.path.dirname(customtkinter.__file__)
-except ImportError:
+except ImportError as e:
     print("ERROR: CustomTkinter no está instalado")
     print("Ejecute: pip install customtkinter")
+    print("Detalles del error:", e)
     sys.exit(1)
 
 # ========== ARCHIVOS A INCLUIR ==========
@@ -52,7 +53,7 @@ build_exe_options = {
 # ========== CONFIGURACIÓN DEL INSTALADOR MSI ==========
 bdist_msi_options = {
     "add_to_path": False,
-    "initial_target_dir": r"[ProgramFilesFolder]\SistemaImprentaExpert",
+    "initial_target_dir": r"[ProgramFilesFolder]\SistemaImprentaExperto",
     "upgrade_code": "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",  # ID único (no cambiar)
     "install_icon": None,  # Agregar ruta al icono .ico si tienes uno
 }
@@ -68,17 +69,17 @@ executables = [
     Executable(
         "main.py",
         base=base,
-        target_name="ImprentaExpert.exe",
+        target_name="SistemaImprentaExperto.exe",
         icon=None,  # Agregar ruta al icono .ico si tienes uno
-        shortcut_name="Sistema Imprenta Expert",
+        shortcut_name="Sistema Imprenta Experto",
         shortcut_dir="DesktopFolder"
     )
 ]
 
 # ========== SETUP ==========
 setup(
-    name="Sistema Imprenta Expert",
-    version="1.6.1",
+    name="Sistema Imprenta Experto",
+    version="2.0.0",
     description="Sistema Experto de Gestión para Imprenta",
     author="Oliver",
     options={

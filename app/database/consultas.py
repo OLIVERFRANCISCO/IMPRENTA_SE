@@ -1199,6 +1199,336 @@ def obtener_estado_por_nombre(nombre):
         session.close()
 
 
+def guardar_estado_pedido(nombre, color='#808080'):
+    """
+    Crea un nuevo estado de pedido
+    
+    Args:
+        nombre: Nombre del estado
+        color: Color hexadecimal
+        
+    Returns:
+        int: ID del estado creado
+    """
+    session = get_session()
+    try:
+        estado = EstadoPedido(nombre=nombre, color=color)
+        session.add(estado)
+        session.commit()
+        return estado.id
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar estado: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_estado_pedido(id_estado, nombre, color='#808080'):
+    """Actualiza un estado de pedido"""
+    session = get_session()
+    try:
+        estado = session.query(EstadoPedido).filter(EstadoPedido.id == id_estado).first()
+        if estado:
+            estado.nombre = nombre
+            estado.color = color
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar estado: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_estado_pedido(id_estado):
+    """Elimina un estado de pedido (si no tiene pedidos asociados)"""
+    session = get_session()
+    try:
+        estado = session.query(EstadoPedido).filter(EstadoPedido.id == id_estado).first()
+        if estado:
+            if estado.pedidos:
+                raise Exception("No se puede eliminar: hay pedidos con este estado")
+            session.delete(estado)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar estado: {str(e)}")
+    finally:
+        session.close()
+
+
+# ========== CATÁLOGO: UNIDADES DE MEDIDA ==========
+
+def obtener_unidades_medida():
+    """
+    Obtiene todas las unidades de medida
+    
+    Returns:
+        list: Lista de diccionarios con datos de unidades
+    """
+    session = get_session()
+    try:
+        unidades = session.query(UnidadMedida).order_by(UnidadMedida.nombre_unidad).all()
+        return [unidad.to_dict() for unidad in unidades]
+    finally:
+        session.close()
+
+
+def guardar_unidad_medida(nombre, abreviacion, tipo, factor_conversion=1.0):
+    """
+    Crea una nueva unidad de medida
+    
+    Args:
+        nombre: Nombre completo (Ej: Metro Cuadrado)
+        abreviacion: Abreviación (Ej: m²)
+        tipo: Tipo de unidad (Área, Longitud, Conteo)
+        factor_conversion: Factor de conversión base
+        
+    Returns:
+        int: ID de la unidad creada
+    """
+    session = get_session()
+    try:
+        unidad = UnidadMedida(
+            nombre_unidad=nombre,
+            abreviacion=abreviacion,
+            tipo=tipo,
+            factor_conversion=factor_conversion
+        )
+        session.add(unidad)
+        session.commit()
+        return unidad.id_unidad
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar unidad: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_unidad_medida(id_unidad, nombre, abreviacion, tipo, factor_conversion=1.0):
+    """Actualiza una unidad de medida"""
+    session = get_session()
+    try:
+        unidad = session.query(UnidadMedida).filter(UnidadMedida.id_unidad == id_unidad).first()
+        if unidad:
+            unidad.nombre_unidad = nombre
+            unidad.abreviacion = abreviacion
+            unidad.tipo = tipo
+            unidad.factor_conversion = factor_conversion
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar unidad: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_unidad_medida(id_unidad):
+    """Elimina una unidad de medida (si no está en uso)"""
+    session = get_session()
+    try:
+        unidad = session.query(UnidadMedida).filter(UnidadMedida.id_unidad == id_unidad).first()
+        if unidad:
+            if unidad.materiales or unidad.servicios:
+                raise Exception("No se puede eliminar: la unidad está en uso")
+            session.delete(unidad)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar unidad: {str(e)}")
+    finally:
+        session.close()
+
+
+def obtener_unidad_por_abreviacion(abreviacion):
+    """Obtiene una unidad por su abreviación"""
+    session = get_session()
+    try:
+        unidad = session.query(UnidadMedida).filter(UnidadMedida.abreviacion == abreviacion).first()
+        return unidad.to_dict() if unidad else None
+    finally:
+        session.close()
+
+
+# ========== CATÁLOGO: TIPOS DE MÁQUINA ==========
+
+def obtener_tipos_maquina():
+    """
+    Obtiene todos los tipos de máquina
+    
+    Returns:
+        list: Lista de diccionarios con datos de tipos
+    """
+    session = get_session()
+    try:
+        tipos = session.query(TipoMaquina).order_by(TipoMaquina.nombre_tipo).all()
+        return [tipo.to_dict() for tipo in tipos]
+    finally:
+        session.close()
+
+
+def guardar_tipo_maquina(nombre):
+    """
+    Crea un nuevo tipo de máquina
+    
+    Args:
+        nombre: Nombre del tipo (Ej: Gran Formato, Láser)
+        
+    Returns:
+        int: ID del tipo creado
+    """
+    session = get_session()
+    try:
+        tipo = TipoMaquina(nombre_tipo=nombre)
+        session.add(tipo)
+        session.commit()
+        return tipo.id_tipo_maquina
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_tipo_maquina(id_tipo, nombre):
+    """Actualiza un tipo de máquina"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaquina).filter(TipoMaquina.id_tipo_maquina == id_tipo).first()
+        if tipo:
+            tipo.nombre_tipo = nombre
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_tipo_maquina(id_tipo):
+    """Elimina un tipo de máquina (si no está en uso)"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaquina).filter(TipoMaquina.id_tipo_maquina == id_tipo).first()
+        if tipo:
+            if tipo.maquinas:
+                raise Exception("No se puede eliminar: hay máquinas de este tipo")
+            session.delete(tipo)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def obtener_tipo_maquina_por_nombre(nombre):
+    """Obtiene un tipo de máquina por su nombre"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaquina).filter(TipoMaquina.nombre_tipo == nombre).first()
+        return tipo.to_dict() if tipo else None
+    finally:
+        session.close()
+
+
+# ========== CATÁLOGO: TIPOS DE MATERIAL ==========
+
+def obtener_tipos_material():
+    """
+    Obtiene todos los tipos de material
+    
+    Returns:
+        list: Lista de diccionarios con datos de tipos
+    """
+    session = get_session()
+    try:
+        tipos = session.query(TipoMaterial).order_by(TipoMaterial.nombre_tipo).all()
+        return [tipo.to_dict() for tipo in tipos]
+    finally:
+        session.close()
+
+
+def guardar_tipo_material(nombre):
+    """
+    Crea un nuevo tipo de material
+    
+    Args:
+        nombre: Nombre del tipo (Ej: Papel, Vinilo, Lona)
+        
+    Returns:
+        int: ID del tipo creado
+    """
+    session = get_session()
+    try:
+        tipo = TipoMaterial(nombre_tipo=nombre)
+        session.add(tipo)
+        session.commit()
+        return tipo.id_tipo_material
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_tipo_material(id_tipo, nombre):
+    """Actualiza un tipo de material"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaterial).filter(TipoMaterial.id_tipo_material == id_tipo).first()
+        if tipo:
+            tipo.nombre_tipo = nombre
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_tipo_material(id_tipo):
+    """Elimina un tipo de material (si no está en uso)"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaterial).filter(TipoMaterial.id_tipo_material == id_tipo).first()
+        if tipo:
+            if tipo.materiales:
+                raise Exception("No se puede eliminar: hay materiales de este tipo")
+            session.delete(tipo)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar tipo: {str(e)}")
+    finally:
+        session.close()
+
+
+def obtener_tipo_material_por_nombre(nombre):
+    """Obtiene un tipo de material por su nombre"""
+    session = get_session()
+    try:
+        tipo = session.query(TipoMaterial).filter(TipoMaterial.nombre_tipo == nombre).first()
+        return tipo.to_dict() if tipo else None
+    finally:
+        session.close()
+
+
 # ========== FUNCIONES AVANZADAS DE PEDIDOS ==========
 
 def obtener_pedidos_filtrados(filtro_estado=None, fecha_ingreso_desde=None, 
@@ -1438,10 +1768,10 @@ def obtener_materiales_disponibles_para_servicio(id_servicio):
     """
     session = get_session()
     try:
-        # Subconsulta de IDs de materiales ya asociados
+        # Subconsulta de IDs de materiales ya asociados (usando select() para evitar SAWarning)
         ids_asociados = session.query(ServicioMaterial.id_material).filter(
             ServicioMaterial.id_servicio == id_servicio
-        ).subquery()
+        ).scalar_subquery()
         
         # Materiales que NO están en la lista de asociados
         materiales = session.query(Material).filter(
@@ -1623,10 +1953,10 @@ def obtener_servicios_disponibles_para_maquina(id_maquina):
     """
     session = get_session()
     try:
-        # Subconsulta de IDs de servicios ya asociados
+        # Subconsulta de IDs de servicios ya asociados (usando scalar_subquery() para evitar SAWarning)
         ids_asociados = session.query(MaquinaServicio.id_servicio).filter(
             MaquinaServicio.id_maquina == id_maquina
-        ).subquery()
+        ).scalar_subquery()
         
         # Servicios que NO están en la lista de asociados
         servicios = session.query(Servicio).filter(

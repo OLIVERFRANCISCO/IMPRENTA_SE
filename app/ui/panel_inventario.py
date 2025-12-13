@@ -354,12 +354,22 @@ class PanelInventario(ctk.CTkFrame):
 
         # === CAMPOS COMUNES ===
         ctk.CTkLabel(dialogo, text="Unidad de Medida:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        combo_unidad = ctk.CTkComboBox(dialogo, values=["metros", "hojas", "cartuchos", "unidades", "rollos", "m²"], width=450)
+        
+        # Obtener unidades de la base de datos
+        unidades = consultas.obtener_unidades_medida()
+        unidades_dict = {u['abreviacion']: u['id_unidad'] for u in unidades}
+        unidades_nombres = [u['abreviacion'] for u in unidades]
+        
+        # Fallback si no hay unidades
+        if not unidades_nombres:
+            unidades_nombres = ["metros", "unidades", "m²"]
+        
+        combo_unidad = ctk.CTkComboBox(dialogo, values=unidades_nombres, width=450)
         combo_unidad.pack(pady=5)
         if material:
             combo_unidad.set(material['unidad_medida'])
         else:
-            combo_unidad.set("metros")
+            combo_unidad.set(unidades_nombres[0] if unidades_nombres else "metros")
 
         ctk.CTkLabel(dialogo, text="Precio por Unidad:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
         entry_precio = ctk.CTkEntry(dialogo, width=450, placeholder_text="Precio en soles")

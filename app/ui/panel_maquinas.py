@@ -186,16 +186,25 @@ class PanelMaquinas(ctk.CTkFrame):
             entry_nombre.insert(0, maquina['nombre'])
 
         ctk.CTkLabel(scroll, text="Tipo de Máquina:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5), anchor="w")
+        
+        # Obtener tipos de máquina de la base de datos
+        tipos_maquina = consultas.obtener_tipos_maquina()
+        tipos_nombres = [t['nombre_tipo'] for t in tipos_maquina]
+        
+        # Fallback si no hay tipos
+        if not tipos_nombres:
+            tipos_nombres = ["Pequeño Formato", "Gran Formato", "Acabado", "Sublimación", "Láser", "Plotter de Corte", "UV"]
+        
         combo_tipo = ctk.CTkComboBox(
             scroll,
-            values=["Pequeño Formato", "Gran Formato", "Acabado", "Sublimación", "Láser", "Plotter de Corte", "UV"],
+            values=tipos_nombres,
             width=450
         )
         combo_tipo.pack(pady=5, anchor="w")
         if maquina:
             combo_tipo.set(maquina['tipo'])
         else:
-            combo_tipo.set("Pequeño Formato")
+            combo_tipo.set(tipos_nombres[0] if tipos_nombres else "Pequeño Formato")
         
         # === SECCIÓN: Capacidades Físicas (CONOCIMIENTO TÉCNICO) ===
         ctk.CTkLabel(scroll, text="⚙️ Capacidades Físicas (Sistema Experto)", 

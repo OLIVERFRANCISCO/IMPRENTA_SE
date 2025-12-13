@@ -16,6 +16,7 @@ from app.ui.panel_maquinas import PanelMaquinas
 from app.ui.panel_admin import PanelAdmin
 from app.ui.panel_perfil import PanelPerfil
 from app.ui.panel_reglas_experto import PanelReglasExperto
+from app.ui.panel_configuracion import PanelConfiguracion
 
 
 class ImprentaApp(ctk.CTk):
@@ -43,6 +44,7 @@ class ImprentaApp(ctk.CTk):
         'admin': '⚙️',
         'perfil': '👤',
         'reglas': '🧠',
+        'config': '🔧',
     }
     
     # Mapeo de paneles a identificadores para permisos
@@ -55,6 +57,7 @@ class ImprentaApp(ctk.CTk):
         'btn_maquinas': 'panel_maquinas',
         'btn_reportes': 'panel_reportes',
         'btn_reglas': 'panel_reglas',
+        'btn_config': 'panel_config',
         'btn_admin': 'panel_admin',
         'btn_perfil': None,  # No requiere permisos, disponible para todos
     }
@@ -229,15 +232,21 @@ class ImprentaApp(ctk.CTk):
                 ("Base de Conocimientos", self.ICONOS['reglas'], self.mostrar_panel_reglas, 10, 'panel_reglas')
             )
         
+        # Agregar panel de configuración (solo admin)
+        if auth_service.is_admin():
+            config_botones.append(
+                ("Configuración", self.ICONOS['config'], self.mostrar_panel_configuracion, 11, 'panel_config')
+            )
+        
         # Agregar panel de admin solo si es admin
         if auth_service.is_admin():
             config_botones.append(
-                ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 11, 'panel_admin')
+                ("Administración", self.ICONOS['admin'], self.mostrar_panel_admin, 12, 'panel_admin')
             )
         
         # Agregar perfil (disponible para todos)
         config_botones.append(
-            ("Mi Perfil", self.ICONOS['perfil'], self.mostrar_panel_perfil, 12, None)
+            ("Mi Perfil", self.ICONOS['perfil'], self.mostrar_panel_perfil, 13, None)
         )
         
         # Crear botones solo si tiene permiso para verlos
@@ -284,7 +293,7 @@ class ImprentaApp(ctk.CTk):
             self.sidebar,
             fg_color="transparent"
         )
-        footer_frame.grid(row=13, column=0, padx=20, pady=20, sticky="ew")
+        footer_frame.grid(row=14, column=0, padx=20, pady=20, sticky="ew")
         
         # Botón de cerrar sesión
         self.btn_logout = ctk.CTkButton(
@@ -398,6 +407,13 @@ class ImprentaApp(ctk.CTk):
             messagebox.showerror("Acceso Denegado", "Solo los administradores pueden configurar las reglas")
             return
         self._mostrar_panel(PanelReglasExperto, 'btn_reglas')
+    
+    def mostrar_panel_configuracion(self):
+        """Muestra el panel de configuración del sistema (solo admin)"""
+        if not auth_service.is_admin():
+            messagebox.showerror("Acceso Denegado", "Solo los administradores pueden acceder a configuración")
+            return
+        self._mostrar_panel(PanelConfiguracion, 'btn_config')
     
     def mostrar_panel_admin(self):
         """Muestra el panel de administración (solo admin)"""

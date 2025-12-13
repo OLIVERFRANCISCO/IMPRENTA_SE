@@ -192,7 +192,16 @@ class PanelServicios(ctk.CTkFrame):
             entry_nombre.insert(0, servicio['nombre_servicio'])
 
         ctk.CTkLabel(dialogo, text="Unidad de Cobro:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        combo_unidad = ctk.CTkComboBox(dialogo, values=["m2", "cm2", "unidad", "ciento", "docena", "metro", "hora"], width=450)
+        
+        # Obtener unidades de la base de datos
+        unidades = consultas.obtener_unidades_medida()
+        unidades_nombres = [u['abreviacion'] for u in unidades]
+        
+        # Fallback si no hay unidades
+        if not unidades_nombres:
+            unidades_nombres = ["m2", "cm2", "unidad", "ciento", "docena", "metro", "hora"]
+        
+        combo_unidad = ctk.CTkComboBox(dialogo, values=unidades_nombres, width=450)
         combo_unidad.pack(pady=5)
         if servicio:
             combo_unidad.set(servicio['unidad_cobro'])
