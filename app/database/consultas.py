@@ -10,7 +10,7 @@ from app.database.models import (
     Cliente, Maquina, Material, EstadoPedido, Servicio, 
     Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial, MaquinaServicio,
     TipoMaquina, TipoMaterial, UnidadMedida, InventarioMaterial, AtributoRolloImpresion,
-    CapacidadMaquina
+    CapacidadMaquina, PrecioEscalonado, RestriccionCantidad
 )
 
 
@@ -1525,6 +1525,321 @@ def obtener_tipo_material_por_nombre(nombre):
     try:
         tipo = session.query(TipoMaterial).filter(TipoMaterial.nombre_tipo == nombre).first()
         return tipo.to_dict() if tipo else None
+    finally:
+        session.close()
+
+
+# ========== REGLAS DE NEGOCIO: PRECIOS ESCALONADOS ==========
+
+def obtener_precios_escalonados(id_servicio=None):
+    """
+    Obtiene los precios escalonados, opcionalmente filtrados por servicio
+    
+    Args:
+        id_servicio: ID del servicio para filtrar (opcional)
+        
+    Returns:
+        list: Lista de diccionarios con precios escalonados
+    """
+    session = get_session()
+    try:
+        query = session.query(PrecioEscalonado)
+        if id_servicio:
+            query = query.filter(PrecioEscalonado.id_servicio == id_servicio)
+        precios = query.order_by(PrecioEscalonado.id_servicio, PrecioEscalonado.cantidad_minima).all()
+        
+        result = []
+        for p in precios:
+            d = p.to_dict()
+            d['nombre_servicio'] = p.servicio.nombre_servicio if p.servicio else None
+            result.append(d)
+        return result
+    finally:
+        session.close()
+
+
+def guardar_precio_escalonado(id_servicio, cantidad_minima, cantidad_maxima, precio_unitario):
+    """
+    Crea un nuevo precio escalonado
+    
+    Args:
+        id_servicio: ID del servicio
+        cantidad_minima: Cantidad desde la cual aplica
+        cantidad_maxima: Cantidad hasta la cual aplica (None = sin límite)
+        precio_unitario: Precio por unidad
+        
+    Returns:
+        int: ID del precio creado
+    """
+    session = get_session()
+    try:
+        precio = PrecioEscalonado(
+            id_servicio=id_servicio,
+            cantidad_minima=cantidad_minima,
+            cantidad_maxima=cantidad_maxima,
+            precio_unitario=precio_unitario
+        )
+        session.add(precio)
+        session.commit()
+        return precio.id
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar precio escalonado: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_precio_escalonado(id_precio, cantidad_minima, cantidad_maxima, precio_unitario):
+    """Actualiza un precio escalonado existente"""
+    session = get_session()
+    try:
+        precio = session.query(PrecioEscalonado).filter(PrecioEscalonado.id == id_precio).first()
+        if precio:
+            precio.cantidad_minima = cantidad_minima
+            precio.cantidad_maxima = cantidad_maxima
+            precio.precio_unitario = precio_unitario
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar precio: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_precio_escalonado(id_precio):
+    """Elimina un precio escalonado"""
+    session = get_session()
+    try:
+        precio = session.query(PrecioEscalonado).filter(PrecioEscalonado.id == id_precio).first()
+        if precio:
+            session.delete(precio)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar precio: {str(e)}")
+    finally:
+        session.close()
+
+
+def obtener_precio_por_cantidad(id_servicio, cantidad):
+    """
+    Obtiene el precio unitario para una cantidad específica de un servicio.
+    Usado por el motor de cálculos.
+    
+    Args:
+        id_servicio: ID del servicio
+        cantidad: Cantidad a consultar
+        
+    Returns:
+        float or None: Precio unitario o None si no hay regla
+    """
+    session = get_session()
+    try:
+        # Buscar precio escalonado que aplique
+        precio = session.query(PrecioEscalonado).filter(
+            PrecioEscalonado.id_servicio == id_servicio,
+            PrecioEscalonado.cantidad_minima <= cantidad,
+            or_(
+                PrecioEscalonado.cantidad_maxima >= cantidad,
+                PrecioEscalonado.cantidad_maxima == None
+            )
+        ).first()
+        
+        return precio.precio_unitario if precio else None
+    finally:
+        session.close()
+
+
+# ========== REGLAS DE NEGOCIO: RESTRICCIONES DE CANTIDAD ==========
+
+def obtener_restricciones_cantidad(id_servicio=None):
+    """
+    Obtiene las restricciones de cantidad, opcionalmente filtradas por servicio
+    
+    Args:
+        id_servicio: ID del servicio para filtrar (opcional)
+        
+    Returns:
+        list: Lista de diccionarios con restricciones
+    """
+    session = get_session()
+    try:
+        query = session.query(RestriccionCantidad)
+        if id_servicio:
+            query = query.filter(RestriccionCantidad.id_servicio == id_servicio)
+        restricciones = query.all()
+        
+        result = []
+        for r in restricciones:
+            d = r.to_dict()
+            d['nombre_servicio'] = r.servicio.nombre_servicio if r.servicio else None
+            result.append(d)
+        return result
+    finally:
+        session.close()
+
+
+def guardar_restriccion_cantidad(id_servicio, tipo_restriccion, valores_permitidos=None,
+                                  multiplo_base=None, multiplo_desde=None,
+                                  cantidad_minima=None, cantidad_maxima=None, mensaje_error=None):
+    """
+    Crea una nueva restricción de cantidad
+    
+    Args:
+        id_servicio: ID del servicio
+        tipo_restriccion: 'lista', 'multiplo' o 'rango'
+        valores_permitidos: Para tipo 'lista', valores separados por coma
+        multiplo_base: Para tipo 'multiplo', el valor base
+        multiplo_desde: Para tipo 'multiplo', desde qué cantidad aplicar
+        cantidad_minima: Para tipo 'rango'
+        cantidad_maxima: Para tipo 'rango'
+        mensaje_error: Mensaje personalizado de error
+        
+    Returns:
+        int: ID de la restricción creada
+    """
+    session = get_session()
+    try:
+        restriccion = RestriccionCantidad(
+            id_servicio=id_servicio,
+            tipo_restriccion=tipo_restriccion,
+            valores_permitidos=valores_permitidos,
+            multiplo_base=multiplo_base,
+            multiplo_desde=multiplo_desde,
+            cantidad_minima=cantidad_minima,
+            cantidad_maxima=cantidad_maxima,
+            mensaje_error=mensaje_error
+        )
+        session.add(restriccion)
+        session.commit()
+        return restriccion.id
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al guardar restricción: {str(e)}")
+    finally:
+        session.close()
+
+
+def actualizar_restriccion_cantidad(id_restriccion, tipo_restriccion, valores_permitidos=None,
+                                     multiplo_base=None, multiplo_desde=None,
+                                     cantidad_minima=None, cantidad_maxima=None, mensaje_error=None):
+    """Actualiza una restricción de cantidad existente"""
+    session = get_session()
+    try:
+        restriccion = session.query(RestriccionCantidad).filter(RestriccionCantidad.id == id_restriccion).first()
+        if restriccion:
+            restriccion.tipo_restriccion = tipo_restriccion
+            restriccion.valores_permitidos = valores_permitidos
+            restriccion.multiplo_base = multiplo_base
+            restriccion.multiplo_desde = multiplo_desde
+            restriccion.cantidad_minima = cantidad_minima
+            restriccion.cantidad_maxima = cantidad_maxima
+            restriccion.mensaje_error = mensaje_error
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al actualizar restricción: {str(e)}")
+    finally:
+        session.close()
+
+
+def eliminar_restriccion_cantidad(id_restriccion):
+    """Elimina una restricción de cantidad"""
+    session = get_session()
+    try:
+        restriccion = session.query(RestriccionCantidad).filter(RestriccionCantidad.id == id_restriccion).first()
+        if restriccion:
+            session.delete(restriccion)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al eliminar restricción: {str(e)}")
+    finally:
+        session.close()
+
+
+def validar_cantidad_servicio(id_servicio, cantidad):
+    """
+    Valida si una cantidad es permitida para un servicio según sus restricciones.
+    Usado por el motor de cálculos.
+    
+    Args:
+        id_servicio: ID del servicio
+        cantidad: Cantidad a validar
+        
+    Returns:
+        tuple: (es_valido: bool, mensaje: str, cantidad_sugerida: int)
+    """
+    session = get_session()
+    try:
+        restriccion = session.query(RestriccionCantidad).filter(
+            RestriccionCantidad.id_servicio == id_servicio
+        ).first()
+        
+        if not restriccion:
+            # Sin restricciones, cualquier cantidad es válida
+            return True, "Cantidad válida", cantidad
+        
+        tipo = restriccion.tipo_restriccion
+        
+        if tipo == 'lista':
+            # Validar contra lista de valores permitidos
+            valores = [int(v.strip()) for v in restriccion.valores_permitidos.split(',')]
+            
+            # Agregar múltiplos si están definidos
+            if restriccion.multiplo_base and restriccion.multiplo_desde:
+                for i in range(1, 51):
+                    multiplo = restriccion.multiplo_base * i
+                    if multiplo >= restriccion.multiplo_desde and multiplo not in valores:
+                        valores.append(multiplo)
+            
+            valores.sort()
+            
+            if cantidad in valores:
+                return True, "Cantidad válida", cantidad
+            
+            # Encontrar cantidad sugerida más cercana
+            cantidad_sugerida = min(valores, key=lambda x: abs(x - cantidad))
+            mensaje = restriccion.mensaje_error or f"Cantidad inválida. Opciones: {', '.join(map(str, valores[:10]))}..."
+            return False, mensaje, cantidad_sugerida
+            
+        elif tipo == 'multiplo':
+            base = restriccion.multiplo_base or 1
+            desde = restriccion.multiplo_desde or 1
+            
+            if cantidad < desde:
+                return False, f"La cantidad mínima es {desde}", desde
+            
+            if cantidad % base == 0:
+                return True, "Cantidad válida", cantidad
+            
+            cantidad_sugerida = round(cantidad / base) * base
+            if cantidad_sugerida < desde:
+                cantidad_sugerida = desde
+            mensaje = restriccion.mensaje_error or f"Solo se permiten múltiplos de {base}"
+            return False, mensaje, cantidad_sugerida
+            
+        elif tipo == 'rango':
+            min_cant = restriccion.cantidad_minima or 1
+            max_cant = restriccion.cantidad_maxima or 999999
+            
+            if min_cant <= cantidad <= max_cant:
+                return True, "Cantidad válida", cantidad
+            
+            if cantidad < min_cant:
+                return False, f"La cantidad mínima es {min_cant}", min_cant
+            else:
+                return False, f"La cantidad máxima es {max_cant}", max_cant
+        
+        return True, "Cantidad válida", cantidad
     finally:
         session.close()
 

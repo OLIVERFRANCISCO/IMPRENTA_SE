@@ -184,108 +184,93 @@ def calcular_descuento(precio_original, porcentaje_descuento):
     return round(precio_final, 2), round(monto_descuento, 2)
 
 
-def calcular_precio_sugerido(nombre_servicio, cantidad):
+def calcular_precio_sugerido(nombre_servicio, cantidad, id_servicio=None):
     """
-    Calcula el precio unitario sugerido según reglas de negocio
+    Calcula el precio unitario sugerido según reglas de negocio almacenadas en BD.
 
-    Reglas de Negocio:
-    - Tazas Personalizadas: Precios escalonados
-        * 1-9 unidades: S/. 25.00
-        * 10-99 unidades: S/. 20.00
-        * 100+ unidades: S/. 8.00
-    - Otros productos: retorna None (precio manual)
+    El sistema consulta la tabla 'precios_escalonados' para determinar el precio
+    basado en la cantidad. Las reglas son configurables desde el panel de admin.
 
     Args:
-        nombre_servicio (str): Nombre del servicio/producto
+        nombre_servicio (str): Nombre del servicio/producto (para compatibilidad)
         cantidad (int): Cantidad de unidades
+        id_servicio (int): ID del servicio (opcional, mejora precisión)
 
     Returns:
-        float or None: Precio unitario sugerido o None si no aplica
+        float or None: Precio unitario sugerido o None si no hay regla configurada
     """
-    nombre_servicio_lower = nombre_servicio.lower()
-
-    # Precios escalonados para Tazas Personalizadas
-    if "taza" in nombre_servicio_lower:
-        if cantidad >= 100:
-            return 8.00
-        elif cantidad >= 10:
-            return 20.00
-        else:
-            return 25.00
-
-    # Para otros servicios, retornar None (precio manual)
+    from app.database import consultas
+    
+    # Si tenemos el ID del servicio, buscar directamente
+    if id_servicio:
+        precio = consultas.obtener_precio_por_cantidad(id_servicio, cantidad)
+        if precio:
+            return precio
+    
+    # Fallback: buscar servicio por nombre
+    servicios = consultas.obtener_servicios()
+    for servicio in servicios:
+        if nombre_servicio.lower() in servicio['nombre_servicio'].lower():
+            precio = consultas.obtener_precio_por_cantidad(servicio['id_servicio'], cantidad)
+            if precio:
+                return precio
+    
+    # No hay regla configurada
     return None
 
 
-def validar_restricciones_cantidad(nombre_servicio, cantidad):
+def validar_restricciones_cantidad(nombre_servicio, cantidad, id_servicio=None):
     """
-    Valida restricciones de cantidad según el tipo de producto
+    Valida restricciones de cantidad según reglas almacenadas en BD.
 
-    Reglas de Negocio:
-    - Llaveros: Solo permitir 25, 50, 100, 200, 300... (múltiplos de 100 después de 100)
+    El sistema consulta la tabla 'restricciones_cantidad' para validar si la
+    cantidad es permitida. Las reglas son configurables desde el panel de admin.
+
+    Tipos de restricción soportados:
+    - 'lista': Valores específicos permitidos (ej: 25, 50, 100)
+    - 'multiplo': Solo múltiplos de un número (ej: múltiplos de 100)
+    - 'rango': Entre un mínimo y máximo
 
     Args:
-        nombre_servicio (str): Nombre del servicio/producto
+        nombre_servicio (str): Nombre del servicio/producto (para compatibilidad)
         cantidad (int): Cantidad a validar
+        id_servicio (int): ID del servicio (opcional, mejora precisión)
 
     Returns:
         tuple: (es_valido: bool, mensaje: str, cantidad_sugerida: int)
     """
-    nombre_servicio_lower = nombre_servicio.lower()
-
-    # Validación estricta para Llaveros
-    if "llavero" in nombre_servicio_lower:
-        cantidades_validas = [25, 50]
-
-        # Agregar múltiplos de 100
-        for i in range(1, 51):  # hasta 5000 unidades
-            cantidades_validas.append(i * 100)
-
-        if cantidad in cantidades_validas:
-            return True, "Cantidad válida", cantidad
-        else:
-            # Buscar la cantidad sugerida más cercana
-            cantidad_sugerida = 25
-
-            if cantidad < 25:
-                cantidad_sugerida = 25
-            elif cantidad < 50:
-                # Entre 25 y 50, elegir el más cercano
-                if (cantidad - 25) <= (50 - cantidad):
-                    cantidad_sugerida = 25
-                else:
-                    cantidad_sugerida = 50
-            elif cantidad < 100:
-                # Entre 50 y 100, elegir el más cercano
-                if (cantidad - 50) <= (100 - cantidad):
-                    cantidad_sugerida = 50
-                else:
-                    cantidad_sugerida = 100
-            else:
-                # Para cantidades >= 100, redondear al múltiplo de 100 más cercano
-                cantidad_sugerida = round(cantidad / 100) * 100
-                if cantidad_sugerida < 100:
-                    cantidad_sugerida = 100
-
-            mensaje = f"Cantidad inválida. Sugerencia: usar {cantidad_sugerida} unidades (opciones válidas: 25, 50, 100, 200, 300...)"
-            return False, mensaje, cantidad_sugerida
-
-    # Para otros productos, cualquier cantidad es válida
+    from app.database import consultas
+    
+    # Si tenemos el ID del servicio, validar directamente
+    if id_servicio:
+        return consultas.validar_cantidad_servicio(id_servicio, cantidad)
+    
+    # Fallback: buscar servicio por nombre
+    servicios = consultas.obtener_servicios()
+    for servicio in servicios:
+        if nombre_servicio.lower() in servicio['nombre_servicio'].lower():
+            return consultas.validar_cantidad_servicio(servicio['id_servicio'], cantidad)
+    
+    # Sin restricciones configuradas, cualquier cantidad es válida
     return True, "Cantidad válida", cantidad
 
 
-def validar_optimizacion_impresion(ancho, nombre_servicio, ancho_maximo_maquina=2.5):
+def validar_optimizacion_impresion(ancho, nombre_servicio, ancho_maximo_maquina=None, id_maquina=None):
     """
-    Valida y sugiere optimización para impresión de gigantografías
+    Valida y sugiere optimización para impresión de gigantografías.
+    
+    Consulta la capacidad de la máquina desde la BD si se proporciona id_maquina,
+    o usa el valor por defecto configurado.
 
     Regla de Negocio:
-    - Si el ancho supera el ancho máximo de la máquina (2.5m),
+    - Si el ancho supera el ancho máximo de la máquina,
       sugerir dividir en paños o rotar el diseño
 
     Args:
         ancho (float): Ancho del pedido en metros
         nombre_servicio (str): Nombre del servicio
-        ancho_maximo_maquina (float): Ancho máximo de la máquina (default: 2.5m)
+        ancho_maximo_maquina (float): Ancho máximo de la máquina (opcional)
+        id_maquina (int): ID de la máquina para consultar su capacidad (opcional)
 
     Returns:
         tuple: (requiere_optimizacion: bool, mensaje_sugerencia: str)
@@ -293,17 +278,46 @@ def validar_optimizacion_impresion(ancho, nombre_servicio, ancho_maximo_maquina=
     nombre_servicio_lower = nombre_servicio.lower()
 
     # Solo aplica para gigantografías
-    if "gigantografia" in nombre_servicio_lower or "giganto" in nombre_servicio_lower:
-        if ancho > ancho_maximo_maquina:
-            mensaje = (
-                f"⚠️ SUGERENCIA DE OPTIMIZACIÓN:\n\n"
-                f"El ancho solicitado ({ancho}m) supera el ancho máximo de la máquina ({ancho_maximo_maquina}m).\n\n"
-                f"Opciones recomendadas:\n"
-                f"• Dividir el diseño en 2 paños de {ancho_maximo_maquina}m cada uno\n"
-                f"• Imprimir rotado para optimizar el uso del material\n"
-                f"• Consultar con el cliente sobre ajustes en las dimensiones"
-            )
-            return True, mensaje
+    if "gigantografia" not in nombre_servicio_lower and "giganto" not in nombre_servicio_lower:
+        return False, ""
+    
+    # Obtener ancho máximo de la BD si tenemos id_maquina
+    if id_maquina and ancho_maximo_maquina is None:
+        from app.database import consultas
+        try:
+            maquinas = consultas.obtener_maquinas()
+            for maq in maquinas:
+                if maq['id_maquina'] == id_maquina:
+                    # Buscar capacidad de la máquina
+                    from app.database.conexion import get_session
+                    from app.database.models import CapacidadMaquina
+                    session = get_session()
+                    try:
+                        capacidad = session.query(CapacidadMaquina).filter(
+                            CapacidadMaquina.id_maquina == id_maquina
+                        ).first()
+                        if capacidad and capacidad.ancho_util_max > 0:
+                            ancho_maximo_maquina = capacidad.ancho_util_max
+                    finally:
+                        session.close()
+                    break
+        except:
+            pass
+    
+    # Valor por defecto si no se pudo obtener
+    if ancho_maximo_maquina is None:
+        ancho_maximo_maquina = 2.5  # Valor típico para gran formato
+    
+    if ancho > ancho_maximo_maquina:
+        mensaje = (
+            f"⚠️ SUGERENCIA DE OPTIMIZACIÓN:\n\n"
+            f"El ancho solicitado ({ancho}m) supera el ancho máximo de la máquina ({ancho_maximo_maquina}m).\n\n"
+            f"Opciones recomendadas:\n"
+            f"• Dividir el diseño en 2 paños de {ancho_maximo_maquina}m cada uno\n"
+            f"• Imprimir rotado para optimizar el uso del material\n"
+            f"• Consultar con el cliente sobre ajustes en las dimensiones"
+        )
+        return True, mensaje
 
     return False, ""
 

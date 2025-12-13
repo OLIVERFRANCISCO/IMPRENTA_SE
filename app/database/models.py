@@ -1,5 +1,5 @@
 """
-Modelos ORM Normalizados (V2) - Sistema Experto de Imprenta
+Modelos ORM Normalizados - Sistema Experto de Imprenta
 Basado en esquema 3FN/BCNF para separar lógica de negocio, inventario y definiciones.
 """
 from datetime import datetime
@@ -593,4 +593,81 @@ class Permiso(Base):
             'panel': self.panel,
             'permiso': self.permiso,
             'nombre_rol': self.rol.nombre_rol if self.rol else None
+        }
+
+
+# ==========================================
+# 6. REGLAS DE NEGOCIO CONFIGURABLES
+# ==========================================
+
+class PrecioEscalonado(Base):
+    """
+    REGLA DE NEGOCIO: Precios escalonados por servicio y cantidad.
+    Ej: Tazas: 1-9 = S/25, 10-99 = S/20, 100+ = S/8
+    """
+    __tablename__ = 'precios_escalonados'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_servicio = Column(Integer, ForeignKey('servicios.id_servicio'), nullable=False)
+    cantidad_minima = Column(Integer, nullable=False)  # Desde esta cantidad
+    cantidad_maxima = Column(Integer, nullable=True)   # Hasta esta cantidad (NULL = infinito)
+    precio_unitario = Column(Float, nullable=False)
+    
+    __table_args__ = (UniqueConstraint('id_servicio', 'cantidad_minima'),)
+    
+    servicio = relationship('Servicio', backref='precios_escalonados')
+    
+    def __repr__(self):
+        return f"<PrecioEscalonado(servicio={self.id_servicio}, {self.cantidad_minima}-{self.cantidad_maxima}: S/{self.precio_unitario})>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_servicio': self.id_servicio,
+            'cantidad_minima': self.cantidad_minima,
+            'cantidad_maxima': self.cantidad_maxima,
+            'precio_unitario': self.precio_unitario
+        }
+
+
+class RestriccionCantidad(Base):
+    """
+    REGLA DE NEGOCIO: Restricciones de cantidad permitidas por servicio.
+    Ej: Llaveros solo permite 25, 50, 100, 200, 300...
+    """
+    __tablename__ = 'restricciones_cantidad'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_servicio = Column(Integer, ForeignKey('servicios.id_servicio'), nullable=False)
+    tipo_restriccion = Column(String, nullable=False)  # 'lista', 'multiplo', 'rango'
+    
+    # Para tipo 'lista': valores separados por coma (ej: "25,50")
+    valores_permitidos = Column(String, nullable=True)
+    
+    # Para tipo 'multiplo': el valor base (ej: 100 para múltiplos de 100)
+    multiplo_base = Column(Integer, nullable=True)
+    multiplo_desde = Column(Integer, nullable=True)  # Aplicar múltiplos desde esta cantidad
+    
+    # Para tipo 'rango': mínimo y máximo
+    cantidad_minima = Column(Integer, nullable=True)
+    cantidad_maxima = Column(Integer, nullable=True)
+    
+    mensaje_error = Column(String, nullable=True)
+    
+    servicio = relationship('Servicio', backref='restricciones_cantidad')
+    
+    def __repr__(self):
+        return f"<RestriccionCantidad(servicio={self.id_servicio}, tipo={self.tipo_restriccion})>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_servicio': self.id_servicio,
+            'tipo_restriccion': self.tipo_restriccion,
+            'valores_permitidos': self.valores_permitidos,
+            'multiplo_base': self.multiplo_base,
+            'multiplo_desde': self.multiplo_desde,
+            'cantidad_minima': self.cantidad_minima,
+            'cantidad_maxima': self.cantidad_maxima,
+            'mensaje_error': self.mensaje_error
         }
