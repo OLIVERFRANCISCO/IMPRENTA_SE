@@ -237,47 +237,6 @@ def sugerir_material(tipo_trabajo, uso_final="general", id_servicio=None):
                 }
         except Exception:
             pass  # Si falla, continuar con reglas hardcodeadas
-    
-    # FALLBACK: Reglas hardcodeadas si no hay materiales en BD
-    tipo_lower = tipo_trabajo.lower()
-    uso_lower = uso_final.lower()
-
-    # Regla 1: Publicidad exterior
-    if "gigantograf" in tipo_lower or "banner" in tipo_lower or "publicidad" in uso_lower:
-        materiales = [
-            {'nombre': 'Lona 13oz', 'razon': 'Resistente a exteriores', 'es_preferido': True},
-            {'nombre': 'Vinil Adhesivo', 'razon': 'Para superficies lisas', 'es_preferido': False}
-        ]
-        explicacion = "Para publicidad exterior se recomienda material resistente al agua y rayos UV."
-
-    # Regla 2: Recuerdos y merchandising
-    elif "recuerdo" in tipo_lower or "merchandising" in uso_lower or "taza" in tipo_lower:
-        materiales = [
-            {'nombre': 'Papel Transfer Sublimación', 'razon': 'Para transferencia térmica', 'es_preferido': True},
-            {'nombre': 'Tinta Sublimación', 'razon': 'Colores vibrantes en textiles', 'es_preferido': False}
-        ]
-        explicacion = "Para recuerdos personalizados se recomienda sublimación para mejor durabilidad."
-
-    # Regla 3: Papelería y formatos
-    elif "tarjeta" in tipo_lower or "flyer" in tipo_lower or "formato" in uso_lower:
-        materiales = [
-            {'nombre': 'Papel Couché 300g', 'razon': 'Acabado profesional', 'es_preferido': True},
-            {'nombre': 'Papel Bond 75g', 'razon': 'Económico para volumen', 'es_preferido': False}
-        ]
-        explicacion = "Para papelería se recomienda papel couché para mejor presentación."
-
-    else:
-        materiales = [
-            {'nombre': 'Papel Bond 75g', 'razon': 'Uso general', 'es_preferido': True},
-        ]
-        explicacion = "Material estándar para impresiones generales."
-
-    return {
-        'materiales_recomendados': materiales,
-        'explicacion': explicacion,
-        'alertas_stock': [],
-        'origen': 'reglas_hardcodeadas'
-    }
 
 
 # ========== REGLA 3: ESTIMACIÓN DE TIEMPO DE ENTREGA ==========

@@ -124,6 +124,8 @@ class DatabaseConnection:
                 session.add_all(estados)
                 print("✅ Estados de pedidos inicializados")
             
+            # 
+
             # Verificar y cargar máquinas
             if session.query(Maquina).count() == 0:
                 maquinas = [

@@ -41,7 +41,6 @@ class ImprentaApp(ctk.CTk):
         'reporte': '📈',
         'admin': '⚙️',
         'perfil': '👤',
-        'reglas': '🧠'
     }
     
     # Mapeo de paneles a identificadores para permisos
@@ -55,7 +54,6 @@ class ImprentaApp(ctk.CTk):
         'btn_reportes': 'panel_reportes',
         'btn_admin': 'panel_admin',
         'btn_perfil': None,  # No requiere permisos, disponible para todos
-        'btn_reglas': None   # Solo admin (verificación en panel)
     }
 
     def __init__(self):
@@ -124,18 +122,18 @@ class ImprentaApp(ctk.CTk):
         
         El sidebar contiene:
         - Header con logo y versión
-        - Botones de navegación organizados
+        - Botones de navegación organizados (con scroll vertical)
         - Espaciado optimizado para mejor UX
         """
-        # Crear frame del sidebar con diseño mejorado
-        self.sidebar = ctk.CTkFrame(
+        # Crear frame del sidebar con diseño mejorado y scroll vertical
+        self.sidebar = ctk.CTkScrollableFrame(
             self, 
             width=self.SIDEBAR_WIDTH,
             corner_radius=0,
             fg_color=("gray90", "gray15")  # Color adaptativo según tema
         )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(9, weight=1)  # Espacio flexible antes del footer
+        self.sidebar.grid_columnconfigure(0, weight=1)
         
         # === HEADER DEL SIDEBAR ===
         self._crear_header_sidebar()
@@ -158,7 +156,7 @@ class ImprentaApp(ctk.CTk):
         # Logo principal con diseño mejorado
         self.logo_label = ctk.CTkLabel(
             header_frame,
-            text="🖨️ IMPRENTA\nEXPERT",
+            text="IMPRENTA\nEXPERT",
             font=ctk.CTkFont(size=self.LOGO_FONT_SIZE, weight="bold"),
             text_color=COLOR_PRIMARY,
             justify="center"
@@ -282,7 +280,7 @@ class ImprentaApp(ctk.CTk):
         # Botón de cerrar sesión
         self.btn_logout = ctk.CTkButton(
             footer_frame,
-            text="🚪 Cerrar Sesión",
+            text="Cerrar Sesión",
             command=self._cerrar_sesion,
             height=40,
             fg_color=COLOR_DANGER,
