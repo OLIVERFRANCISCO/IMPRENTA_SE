@@ -498,20 +498,16 @@ class PanelPedidos(ctk.CTkFrame):
         self._aplicar_logica_servicio(choice)
 
     def _aplicar_logica_servicio(self, nombre_servicio):
-        """RQ-03, RQ-08: Aplica reglas de UI según tipo de servicio y unidad de medida"""
+        """RQ-03, RQ-08: Aplica reglas de UI según tipo de servicio"""
         nombre_lower = nombre_servicio.lower()
 
-        # RQ-03: Determinar si mostrar dimensiones según unidad de medida del servicio
-        unidades_espaciales = ['m', 'cm', 'm2', 'cm2']
+        # RQ-03: Determinar si mostrar dimensiones según tipo_material del servicio
         mostrar_dimensiones = False
 
         if self.servicio_actual:
-            # Acceso seguro a la unidad de cobro del servicio
-            unidad_cobro = self.servicio_actual.get('unidad_cobro', '') if isinstance(self.servicio_actual, dict) else ''
-            if unidad_cobro:
-                unidad_cobro = unidad_cobro.strip().lower()
-                # RQ-03: Mostrar solo si la unidad coincide exactamente con unidades espaciales
-                mostrar_dimensiones = unidad_cobro in unidades_espaciales
+            # Usar el campo tipo_material para determinar si requiere dimensiones
+            tipo_material = self.servicio_actual.get('tipo_material', 'unidad')
+            mostrar_dimensiones = tipo_material == 'dimension'
 
         # RQ-02: Mostrar/ocultar panel de dimensiones dinámicamente
         widgets_dimension = [self.label_ancho, self.entry_ancho, self.label_alto, self.entry_alto, self.label_area]

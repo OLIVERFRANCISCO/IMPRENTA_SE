@@ -38,17 +38,20 @@ class PanelConfiguracion(ctk.CTkFrame):
         self.tabview = ctk.CTkTabview(self, corner_radius=15)
         self.tabview.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
-        # Crear pestañas
-        self.tab_unidades = self.tabview.add("📏 Unidades de Medida")
-        self.tab_tipos_maquina = self.tabview.add("🔧 Tipos de Máquina")
-        self.tab_tipos_material = self.tabview.add("📦 Tipos de Material")
-        self.tab_estados = self.tabview.add("📋 Estados de Pedido")
+        # Crear pestañas (tipos_material NO se configura desde aquí)
+        self.tab_unidades = self.tabview.add("📏 Unidades")
+        self.tab_tipos_maquina = self.tabview.add("🔧 Tipos Máquina")
+        self.tab_estados = self.tabview.add("📋 Estados Pedido")
+        self.tab_precios = self.tabview.add("💰 Precios Escalonados")
+        self.tab_restricciones = self.tabview.add("🔢 Restricciones")
 
         # Configurar cada pestaña
         self._configurar_tab_unidades()
         self._configurar_tab_tipos_maquina()
-        self._configurar_tab_tipos_material()
         self._configurar_tab_estados()
+        self._configurar_tab_precios()
+        self._configurar_tab_restricciones()
+
 
     # ========== UNIDADES DE MEDIDA ==========
     def _configurar_tab_unidades(self):
@@ -660,5 +663,434 @@ class PanelConfiguracion(ctk.CTkFrame):
                 consultas.eliminar_estado_pedido(estado['id'])
                 messagebox.showinfo("Éxito", "Estado eliminado")
                 self._cargar_estados()
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+    # ========== PRECIOS ESCALONADOS ==========
+    def _configurar_tab_precios(self):
+        """Configura la pestaña de precios escalonados"""
+        self.tab_precios.grid_rowconfigure(2, weight=1)
+        self.tab_precios.grid_columnconfigure(0, weight=1)
+
+        # Descripción
+        ctk.CTkLabel(
+            self.tab_precios,
+            text="💡 Configure precios por cantidad. Ej: Tazas: 1-9 = S/25, 10-99 = S/20, 100+ = S/8",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        ).grid(row=0, column=0, sticky="w", padx=10, pady=(5, 10))
+
+        frame_controles = ctk.CTkFrame(self.tab_precios, fg_color="transparent")
+        frame_controles.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+
+        ctk.CTkButton(
+            frame_controles,
+            text="+ Nuevo Precio",
+            command=self._dialogo_precio,
+            fg_color=COLOR_SUCCESS,
+            width=150,
+            height=35
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            frame_controles,
+            text="🔄 Actualizar",
+            command=self._cargar_precios,
+            width=120,
+            height=35
+        ).pack(side="left", padx=5)
+
+        self.scroll_precios = ctk.CTkScrollableFrame(self.tab_precios)
+        self.scroll_precios.grid(row=2, column=0, sticky="nsew")
+        self.scroll_precios.grid_columnconfigure(0, weight=1)
+
+        self._cargar_precios()
+
+    def _cargar_precios(self):
+        """Carga los precios escalonados"""
+        for widget in self.scroll_precios.winfo_children():
+            widget.destroy()
+
+        precios = consultas.obtener_precios_escalonados()
+
+        if not precios:
+            ctk.CTkLabel(
+                self.scroll_precios,
+                text="No hay precios escalonados configurados.\nEjemplo: Para 'Tazas' configure S/25 (1-9), S/20 (10-99), S/8 (100+)",
+                text_color="gray"
+            ).pack(pady=20)
+            return
+
+        frame_header = ctk.CTkFrame(self.scroll_precios, fg_color=COLOR_PRIMARY)
+        frame_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        frame_header.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+
+        headers = ["Servicio", "Desde", "Hasta", "Precio Unit.", "Acciones"]
+        for i, header in enumerate(headers):
+            ctk.CTkLabel(frame_header, text=header, font=ctk.CTkFont(weight="bold"), text_color="white").grid(row=0, column=i, padx=10, pady=8)
+
+        for idx, precio in enumerate(precios):
+            self._crear_fila_precio(precio, idx + 1)
+
+    def _crear_fila_precio(self, precio, fila):
+        """Crea una fila para un precio escalonado"""
+        fg_color = "gray25" if fila % 2 == 0 else "gray20"
+        frame_fila = ctk.CTkFrame(self.scroll_precios, fg_color=fg_color)
+        frame_fila.grid(row=fila, column=0, sticky="ew", pady=2)
+        frame_fila.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+
+        ctk.CTkLabel(frame_fila, text=precio.get('nombre_servicio', 'N/A')).grid(row=0, column=0, padx=10, pady=8)
+        ctk.CTkLabel(frame_fila, text=str(precio['cantidad_minima'])).grid(row=0, column=1, padx=10, pady=8)
+        ctk.CTkLabel(frame_fila, text=str(precio['cantidad_maxima']) if precio['cantidad_maxima'] else "∞").grid(row=0, column=2, padx=10, pady=8)
+        ctk.CTkLabel(frame_fila, text=f"S/ {precio['precio_unitario']:.2f}", font=ctk.CTkFont(weight="bold")).grid(row=0, column=3, padx=10, pady=8)
+
+        frame_acciones = ctk.CTkFrame(frame_fila, fg_color="transparent")
+        frame_acciones.grid(row=0, column=4, padx=5, pady=5)
+
+        ctk.CTkButton(frame_acciones, text="Editar", command=lambda p=precio: self._dialogo_precio(p), width=60, height=28, fg_color=COLOR_PRIMARY).pack(side="left", padx=2)
+        ctk.CTkButton(frame_acciones, text="Eliminar", command=lambda p=precio: self._eliminar_precio(p), width=70, height=28, fg_color=COLOR_DANGER).pack(side="left", padx=2)
+
+    def _dialogo_precio(self, precio=None):
+        """Diálogo para crear/editar precio escalonado"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Nuevo Precio Escalonado" if precio is None else "Editar Precio")
+        dialogo.geometry("500x400")
+        dialogo.transient(self)
+        dialogo.grab_set()
+
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (400 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+
+        # Servicio
+        ctk.CTkLabel(dialogo, text="Servicio:", font=ctk.CTkFont(size=12)).pack(pady=(20, 5))
+        servicios = consultas.obtener_servicios()
+        servicios_dict = {s['nombre_servicio']: s['id_servicio'] for s in servicios}
+        servicios_nombres = list(servicios_dict.keys())
+        
+        combo_servicio = ctk.CTkComboBox(dialogo, values=servicios_nombres if servicios_nombres else ["Sin servicios"], width=400)
+        combo_servicio.pack(pady=5)
+        
+        if precio and precio.get('nombre_servicio'):
+            combo_servicio.set(precio['nombre_servicio'])
+        elif servicios_nombres:
+            combo_servicio.set(servicios_nombres[0])
+
+        # Cantidad mínima
+        ctk.CTkLabel(dialogo, text="Cantidad Mínima:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5))
+        entry_min = ctk.CTkEntry(dialogo, width=400, placeholder_text="Ej: 1")
+        entry_min.pack(pady=5)
+        if precio:
+            entry_min.insert(0, str(precio['cantidad_minima']))
+
+        # Cantidad máxima
+        ctk.CTkLabel(dialogo, text="Cantidad Máxima (vacío = sin límite):", font=ctk.CTkFont(size=12)).pack(pady=(15, 5))
+        entry_max = ctk.CTkEntry(dialogo, width=400, placeholder_text="Ej: 99 (vacío = infinito)")
+        entry_max.pack(pady=5)
+        if precio and precio['cantidad_maxima']:
+            entry_max.insert(0, str(precio['cantidad_maxima']))
+
+        # Precio unitario
+        ctk.CTkLabel(dialogo, text="Precio Unitario (S/):", font=ctk.CTkFont(size=12)).pack(pady=(15, 5))
+        entry_precio = ctk.CTkEntry(dialogo, width=400, placeholder_text="Ej: 25.00")
+        entry_precio.pack(pady=5)
+        if precio:
+            entry_precio.insert(0, str(precio['precio_unitario']))
+
+        def guardar():
+            try:
+                servicio_nombre = combo_servicio.get()
+                id_servicio = servicios_dict.get(servicio_nombre)
+                cant_min = int(entry_min.get())
+                cant_max = int(entry_max.get()) if entry_max.get().strip() else None
+                precio_unit = float(entry_precio.get())
+
+                if not id_servicio:
+                    messagebox.showwarning("Validación", "Seleccione un servicio")
+                    return
+
+                if precio:
+                    consultas.actualizar_precio_escalonado(precio['id'], cant_min, cant_max, precio_unit)
+                    messagebox.showinfo("Éxito", "Precio actualizado")
+                else:
+                    consultas.guardar_precio_escalonado(id_servicio, cant_min, cant_max, precio_unit)
+                    messagebox.showinfo("Éxito", "Precio creado")
+                dialogo.destroy()
+                self._cargar_precios()
+            except ValueError:
+                messagebox.showerror("Error", "Verifique los valores numéricos")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        ctk.CTkButton(dialogo, text="💾 Guardar", command=guardar, fg_color=COLOR_SUCCESS, height=40).pack(pady=25)
+
+    def _eliminar_precio(self, precio):
+        """Elimina un precio escalonado"""
+        if messagebox.askyesno("Confirmar", "¿Eliminar este precio escalonado?"):
+            try:
+                consultas.eliminar_precio_escalonado(precio['id'])
+                messagebox.showinfo("Éxito", "Precio eliminado")
+                self._cargar_precios()
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+    # ========== RESTRICCIONES DE CANTIDAD ==========
+    def _configurar_tab_restricciones(self):
+        """Configura la pestaña de restricciones de cantidad"""
+        self.tab_restricciones.grid_rowconfigure(2, weight=1)
+        self.tab_restricciones.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            self.tab_restricciones,
+            text="💡 Configure qué cantidades son válidas. Ej: Llaveros solo 25, 50, 100, 200...",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        ).grid(row=0, column=0, sticky="w", padx=10, pady=(5, 10))
+
+        frame_controles = ctk.CTkFrame(self.tab_restricciones, fg_color="transparent")
+        frame_controles.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+
+        ctk.CTkButton(
+            frame_controles,
+            text="+ Nueva Restricción",
+            command=self._dialogo_restriccion,
+            fg_color=COLOR_SUCCESS,
+            width=160,
+            height=35
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            frame_controles,
+            text="🔄 Actualizar",
+            command=self._cargar_restricciones,
+            width=120,
+            height=35
+        ).pack(side="left", padx=5)
+
+        self.scroll_restricciones = ctk.CTkScrollableFrame(self.tab_restricciones)
+        self.scroll_restricciones.grid(row=2, column=0, sticky="nsew")
+        self.scroll_restricciones.grid_columnconfigure(0, weight=1)
+
+        self._cargar_restricciones()
+
+    def _cargar_restricciones(self):
+        """Carga las restricciones de cantidad"""
+        for widget in self.scroll_restricciones.winfo_children():
+            widget.destroy()
+
+        restricciones = consultas.obtener_restricciones_cantidad()
+
+        if not restricciones:
+            ctk.CTkLabel(
+                self.scroll_restricciones,
+                text="No hay restricciones configuradas.\nEjemplo: 'Llaveros' solo permite 25, 50, 100, 200...",
+                text_color="gray"
+            ).pack(pady=20)
+            return
+
+        frame_header = ctk.CTkFrame(self.scroll_restricciones, fg_color=COLOR_PRIMARY)
+        frame_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        frame_header.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        headers = ["Servicio", "Tipo", "Configuración", "Acciones"]
+        for i, header in enumerate(headers):
+            ctk.CTkLabel(frame_header, text=header, font=ctk.CTkFont(weight="bold"), text_color="white").grid(row=0, column=i, padx=10, pady=8)
+
+        for idx, restriccion in enumerate(restricciones):
+            self._crear_fila_restriccion(restriccion, idx + 1)
+
+    def _crear_fila_restriccion(self, restriccion, fila):
+        """Crea una fila para una restricción"""
+        fg_color = "gray25" if fila % 2 == 0 else "gray20"
+        frame_fila = ctk.CTkFrame(self.scroll_restricciones, fg_color=fg_color)
+        frame_fila.grid(row=fila, column=0, sticky="ew", pady=2)
+        frame_fila.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        ctk.CTkLabel(frame_fila, text=restriccion.get('nombre_servicio', 'N/A')).grid(row=0, column=0, padx=10, pady=8)
+        
+        tipo = restriccion['tipo_restriccion']
+        tipo_texto = {"lista": "📋 Lista", "multiplo": "🔢 Múltiplo", "rango": "↔️ Rango"}.get(tipo, tipo)
+        ctk.CTkLabel(frame_fila, text=tipo_texto).grid(row=0, column=1, padx=10, pady=8)
+
+        # Mostrar configuración según tipo
+        if tipo == "lista":
+            vals = restriccion.get('valores_permitidos', '')
+            config = (vals[:20] + "...") if len(vals) > 20 else vals
+        elif tipo == "multiplo":
+            config = f"×{restriccion.get('multiplo_base', '')} desde {restriccion.get('multiplo_desde', '')}"
+        else:
+            config = f"{restriccion.get('cantidad_minima', '')}-{restriccion.get('cantidad_maxima', '')}"
+        
+        ctk.CTkLabel(frame_fila, text=config, font=ctk.CTkFont(size=11)).grid(row=0, column=2, padx=10, pady=8)
+
+        frame_acciones = ctk.CTkFrame(frame_fila, fg_color="transparent")
+        frame_acciones.grid(row=0, column=3, padx=5, pady=5)
+
+        ctk.CTkButton(frame_acciones, text="Editar", command=lambda r=restriccion: self._dialogo_restriccion(r), width=60, height=28, fg_color=COLOR_PRIMARY).pack(side="left", padx=2)
+        ctk.CTkButton(frame_acciones, text="Eliminar", command=lambda r=restriccion: self._eliminar_restriccion(r), width=70, height=28, fg_color=COLOR_DANGER).pack(side="left", padx=2)
+
+    def _dialogo_restriccion(self, restriccion=None):
+        """Diálogo para crear/editar restricción de cantidad"""
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Nueva Restricción" if restriccion is None else "Editar Restricción")
+        dialogo.geometry("550x500")
+        dialogo.transient(self)
+        dialogo.grab_set()
+
+        dialogo.update_idletasks()
+        x = (dialogo.winfo_screenwidth() // 2) - (550 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (500 // 2)
+        dialogo.geometry(f"+{x}+{y}")
+
+        scroll = ctk.CTkScrollableFrame(dialogo)
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Servicio
+        ctk.CTkLabel(scroll, text="Servicio:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5), anchor="w")
+        servicios = consultas.obtener_servicios()
+        servicios_dict = {s['nombre_servicio']: s['id_servicio'] for s in servicios}
+        servicios_nombres = list(servicios_dict.keys())
+        
+        combo_servicio = ctk.CTkComboBox(scroll, values=servicios_nombres if servicios_nombres else ["Sin servicios"], width=450)
+        combo_servicio.pack(pady=5, anchor="w")
+        
+        if restriccion and restriccion.get('nombre_servicio'):
+            combo_servicio.set(restriccion['nombre_servicio'])
+        elif servicios_nombres:
+            combo_servicio.set(servicios_nombres[0])
+
+        # Tipo de restricción
+        ctk.CTkLabel(scroll, text="Tipo de Restricción:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5), anchor="w")
+        tipo_var = tk.StringVar(value=restriccion['tipo_restriccion'] if restriccion else 'lista')
+        
+        frame_tipos = ctk.CTkFrame(scroll, fg_color="transparent")
+        frame_tipos.pack(pady=5, anchor="w")
+        
+        ctk.CTkRadioButton(frame_tipos, text="📋 Lista", variable=tipo_var, value="lista").pack(side="left", padx=10)
+        ctk.CTkRadioButton(frame_tipos, text="🔢 Múltiplo", variable=tipo_var, value="multiplo").pack(side="left", padx=10)
+        ctk.CTkRadioButton(frame_tipos, text="↔️ Rango", variable=tipo_var, value="rango").pack(side="left", padx=10)
+
+        # Frame para campos de LISTA
+        frame_lista = ctk.CTkFrame(scroll, fg_color="gray20", corner_radius=10)
+        ctk.CTkLabel(frame_lista, text="Valores (separados por coma):", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_valores = ctk.CTkEntry(frame_lista, width=430, placeholder_text="Ej: 25, 50")
+        entry_valores.pack(pady=5, padx=10)
+        
+        ctk.CTkLabel(frame_lista, text="+ Múltiplos de (opcional):", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_mult_lista = ctk.CTkEntry(frame_lista, width=150, placeholder_text="Ej: 100")
+        entry_mult_lista.pack(pady=5, padx=10, anchor="w")
+        
+        ctk.CTkLabel(frame_lista, text="Múltiplos desde:", font=ctk.CTkFont(size=11)).pack(pady=(5, 5), padx=10, anchor="w")
+        entry_mult_desde = ctk.CTkEntry(frame_lista, width=150, placeholder_text="Ej: 100")
+        entry_mult_desde.pack(pady=(0, 10), padx=10, anchor="w")
+
+        # Frame para campos de MULTIPLO
+        frame_multiplo = ctk.CTkFrame(scroll, fg_color="gray20", corner_radius=10)
+        ctk.CTkLabel(frame_multiplo, text="Múltiplo base:", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_multiplo = ctk.CTkEntry(frame_multiplo, width=150, placeholder_text="Ej: 100")
+        entry_multiplo.pack(pady=5, padx=10, anchor="w")
+        
+        ctk.CTkLabel(frame_multiplo, text="Cantidad mínima:", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_min_mult = ctk.CTkEntry(frame_multiplo, width=150, placeholder_text="Ej: 100")
+        entry_min_mult.pack(pady=(0, 10), padx=10, anchor="w")
+
+        # Frame para campos de RANGO
+        frame_rango = ctk.CTkFrame(scroll, fg_color="gray20", corner_radius=10)
+        ctk.CTkLabel(frame_rango, text="Cantidad mínima:", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_min_rango = ctk.CTkEntry(frame_rango, width=150, placeholder_text="Ej: 10")
+        entry_min_rango.pack(pady=5, padx=10, anchor="w")
+        
+        ctk.CTkLabel(frame_rango, text="Cantidad máxima:", font=ctk.CTkFont(size=11)).pack(pady=(10, 5), padx=10, anchor="w")
+        entry_max_rango = ctk.CTkEntry(frame_rango, width=150, placeholder_text="Ej: 1000")
+        entry_max_rango.pack(pady=(0, 10), padx=10, anchor="w")
+
+        # Prellenar valores si es edición
+        if restriccion:
+            if restriccion.get('valores_permitidos'):
+                entry_valores.insert(0, restriccion['valores_permitidos'])
+            if restriccion.get('multiplo_base'):
+                entry_mult_lista.insert(0, str(restriccion['multiplo_base']))
+                entry_multiplo.insert(0, str(restriccion['multiplo_base']))
+            if restriccion.get('multiplo_desde'):
+                entry_mult_desde.insert(0, str(restriccion['multiplo_desde']))
+                entry_min_mult.insert(0, str(restriccion['multiplo_desde']))
+            if restriccion.get('cantidad_minima'):
+                entry_min_rango.insert(0, str(restriccion['cantidad_minima']))
+            if restriccion.get('cantidad_maxima'):
+                entry_max_rango.insert(0, str(restriccion['cantidad_maxima']))
+
+        def cambiar_tipo(*args):
+            frame_lista.pack_forget()
+            frame_multiplo.pack_forget()
+            frame_rango.pack_forget()
+            
+            if tipo_var.get() == "lista":
+                frame_lista.pack(pady=10, fill="x")
+            elif tipo_var.get() == "multiplo":
+                frame_multiplo.pack(pady=10, fill="x")
+            else:
+                frame_rango.pack(pady=10, fill="x")
+
+        tipo_var.trace_add("write", cambiar_tipo)
+        cambiar_tipo()
+
+        def guardar():
+            try:
+                servicio_nombre = combo_servicio.get()
+                id_servicio = servicios_dict.get(servicio_nombre)
+                tipo = tipo_var.get()
+
+                if not id_servicio:
+                    messagebox.showwarning("Validación", "Seleccione un servicio")
+                    return
+
+                valores_permitidos = None
+                multiplo_base = None
+                multiplo_desde = None
+                cantidad_minima = None
+                cantidad_maxima = None
+
+                if tipo == "lista":
+                    valores_permitidos = entry_valores.get().strip()
+                    if entry_mult_lista.get().strip():
+                        multiplo_base = int(entry_mult_lista.get())
+                    if entry_mult_desde.get().strip():
+                        multiplo_desde = int(entry_mult_desde.get())
+                elif tipo == "multiplo":
+                    multiplo_base = int(entry_multiplo.get())
+                    multiplo_desde = int(entry_min_mult.get()) if entry_min_mult.get().strip() else multiplo_base
+                else:
+                    cantidad_minima = int(entry_min_rango.get())
+                    cantidad_maxima = int(entry_max_rango.get())
+
+                if restriccion:
+                    consultas.actualizar_restriccion_cantidad(
+                        restriccion['id'], tipo, valores_permitidos,
+                        multiplo_base, multiplo_desde, cantidad_minima, cantidad_maxima, None
+                    )
+                    messagebox.showinfo("Éxito", "Restricción actualizada")
+                else:
+                    consultas.guardar_restriccion_cantidad(
+                        id_servicio, tipo, valores_permitidos,
+                        multiplo_base, multiplo_desde, cantidad_minima, cantidad_maxima, None
+                    )
+                    messagebox.showinfo("Éxito", "Restricción creada")
+                dialogo.destroy()
+                self._cargar_restricciones()
+            except ValueError:
+                messagebox.showerror("Error", "Verifique los valores numéricos")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        ctk.CTkButton(scroll, text="💾 Guardar", command=guardar, fg_color=COLOR_SUCCESS, height=40, width=150).pack(pady=20)
+
+    def _eliminar_restriccion(self, restriccion):
+        """Elimina una restricción de cantidad"""
+        if messagebox.askyesno("Confirmar", "¿Eliminar esta restricción?"):
+            try:
+                consultas.eliminar_restriccion_cantidad(restriccion['id'])
+                messagebox.showinfo("Éxito", "Restricción eliminada")
+                self._cargar_restricciones()
             except Exception as e:
                 messagebox.showerror("Error", str(e))

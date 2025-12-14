@@ -9,7 +9,7 @@ from app.database.conexion import get_session
 from app.database.models import (
     Cliente, Maquina, Material, EstadoPedido, Servicio, 
     Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial, MaquinaServicio,
-    TipoMaquina, TipoMaterial, UnidadMedida, InventarioMaterial, AtributoRolloImpresion,
+    TipoMaquina, TipoMaterial, UnidadMedida, InventarioMaterial, InventarioDimensionalMaterial,
     CapacidadMaquina, PrecioEscalonado, RestriccionCantidad
 )
 
@@ -171,7 +171,7 @@ def obtener_servicio_por_id(id_servicio):
         session.close()
 
 
-def guardar_servicio(nombre_servicio, unidad_cobro, precio_base, id_maquina_sugerida=None):
+def guardar_servicio(nombre_servicio, unidad_cobro, precio_base, id_maquina_sugerida=None, tipo_material='unidad'):
     """
     Crea un nuevo servicio
     
@@ -180,6 +180,7 @@ def guardar_servicio(nombre_servicio, unidad_cobro, precio_base, id_maquina_suge
         unidad_cobro: Unidad de cobro (m2, unidad, ciento, etc.)
         precio_base: Precio base del servicio
         id_maquina_sugerida: ID de la máquina sugerida
+        tipo_material: 'dimension' si requiere ancho/alto, 'unidad' si solo cantidad
         
     Returns:
         int: ID del servicio creado
@@ -197,7 +198,8 @@ def guardar_servicio(nombre_servicio, unidad_cobro, precio_base, id_maquina_suge
             nombre_servicio=nombre_servicio,
             id_unidad_cobro=unidad_med.id_unidad,
             precio_base=precio_base,
-            id_maquina_sugerida=id_maquina_sugerida
+            id_maquina_sugerida=id_maquina_sugerida,
+            tipo_material=tipo_material
         )
         session.add(servicio)
         session.commit()
@@ -209,7 +211,7 @@ def guardar_servicio(nombre_servicio, unidad_cobro, precio_base, id_maquina_suge
         session.close()
 
 
-def actualizar_servicio(id_servicio, nombre_servicio, unidad_cobro, precio_base, id_maquina_sugerida=None):
+def actualizar_servicio(id_servicio, nombre_servicio, unidad_cobro, precio_base, id_maquina_sugerida=None, tipo_material='unidad'):
     """
     Actualiza un servicio existente
     
@@ -219,6 +221,7 @@ def actualizar_servicio(id_servicio, nombre_servicio, unidad_cobro, precio_base,
         unidad_cobro: Nueva unidad de cobro
         precio_base: Nuevo precio base
         id_maquina_sugerida: ID de la máquina sugerida
+        tipo_material: 'dimension' si requiere ancho/alto, 'unidad' si solo cantidad
         
     Returns:
         bool: True si se actualizó correctamente
@@ -238,6 +241,7 @@ def actualizar_servicio(id_servicio, nombre_servicio, unidad_cobro, precio_base,
             servicio.id_unidad_cobro = unidad_med.id_unidad
             servicio.precio_base = precio_base
             servicio.id_maquina_sugerida = id_maquina_sugerida
+            servicio.tipo_material = tipo_material
             session.commit()
             return True
         return False
@@ -388,28 +392,37 @@ def obtener_materiales_bajo_stock():
         session.close()
 
 
-def actualizar_stock_material(id_material, cantidad):
+def actualizar_stock_material(id_material, cantidad, es_dimensional=False, largo_agregar=0.0):
     """
-    Actualiza el stock de un material (reemplaza el valor)
+    Actualiza el stock de un material (agrega la cantidad, no reemplaza)
     
     Args:
         id_material: ID del material
-        cantidad: Nueva cantidad en stock
+        cantidad: Cantidad a agregar (para unidades) o ancho (para dimensionales)
+        es_dimensional: Si es True, usa inventario dimensional
+        largo_agregar: Largo a agregar (solo para dimensionales)
         
     Returns:
         bool: True si se actualizó correctamente
     """
     session = get_session()
     try:
-        # Buscar o crear inventario
-        inventario = session.query(InventarioMaterial).filter_by(id_material=id_material).first()
-        if inventario:
-            inventario.cantidad_stock = cantidad
+        if es_dimensional:
+            inv_dim = session.query(InventarioDimensionalMaterial).filter_by(id_material=id_material).first()
+            if inv_dim:
+                inv_dim.largo_disponible += largo_agregar
+                session.commit()
+                return True
+            return False
         else:
-            inventario = InventarioMaterial(id_material=id_material, cantidad_stock=cantidad)
-            session.add(inventario)
-        session.commit()
-        return True
+            inventario = session.query(InventarioMaterial).filter_by(id_material=id_material).first()
+            if inventario:
+                inventario.cantidad_stock += cantidad  # SUMA, no reemplaza
+            else:
+                inventario = InventarioMaterial(id_material=id_material, cantidad_stock=cantidad)
+                session.add(inventario)
+            session.commit()
+            return True
     except SQLAlchemyError as e:
         session.rollback()
         raise Exception(f"Error al actualizar stock: {str(e)}")
@@ -466,33 +479,37 @@ def descontar_stock_material(id_material, cantidad_usada):
 
 
 def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0, 
-                    tipo_material='unidad', sugerencia='', ancho_bobina=0.0,
-                    dimension_minima=0.0, dimension_disponible=0.0):
+                    tipo_material='unidad', sugerencia='', categoria_material='General',
+                    ancho_disponible=0.0, largo_disponible=0.0, 
+                    ancho_minimo=0.0, largo_minimo=0.0, es_continuo=True):
     """
-    Crea un nuevo material con el nuevo esquema normalizado
+    Crea un nuevo material con el esquema normalizado
     
     Args:
         nombre: Nombre del material
-        cantidad: Cantidad inicial en stock
+        cantidad: Cantidad inicial en stock (para materiales de unidad)
         unidad: Unidad de medida (abreviación)
-        stock_minimo: Stock mínimo para alertas
+        stock_minimo: Stock mínimo para alertas (para materiales de unidad)
         precio: Precio por unidad
-        tipo_material: Nombre del tipo de material
+        tipo_material: 'unidad' o 'dimension'
         sugerencia: Descripción/recomendación del material
-        ancho_bobina: Para materiales en rollo
-        dimension_minima: Dimensión mínima (legacy, ignorado)
-        dimension_disponible: Dimensión total disponible (legacy, ignorado)
+        categoria_material: Categoría del material (Papel, Vinilo, Lona, etc.)
+        ancho_disponible: Ancho del rollo/bobina en metros
+        largo_disponible: Largo total disponible en metros
+        ancho_minimo: Ancho mínimo para alertas
+        largo_minimo: Largo mínimo para alertas
+        es_continuo: True si es rollo continuo, False si es plancha
         
     Returns:
         int: ID del material creado
     """
     session = get_session()
     try:
-        # Buscar o crear tipo de material
-        tipo_mat = session.query(TipoMaterial).filter_by(nombre_tipo=tipo_material).first()
-        if not tipo_mat:
-            tipo_mat = TipoMaterial(nombre_tipo=tipo_material)
-            session.add(tipo_mat)
+        # Buscar o crear categoría de material
+        cat_mat = session.query(TipoMaterial).filter_by(nombre_tipo=categoria_material).first()
+        if not cat_mat:
+            cat_mat = TipoMaterial(nombre_tipo=categoria_material)
+            session.add(cat_mat)
             session.flush()
         
         # Buscar o crear unidad de medida
@@ -505,30 +522,33 @@ def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0,
         # Crear material
         material = Material(
             nombre_material=nombre,
-            id_tipo_material=tipo_mat.id_tipo_material,
+            id_tipo_material=cat_mat.id_tipo_material,
             id_unidad_inventario=unidad_med.id_unidad,
             sugerencia=sugerencia
         )
         session.add(material)
         session.flush()
         
-        # Crear registro de inventario
-        inventario = InventarioMaterial(
-            id_material=material.id_material,
-            cantidad_stock=cantidad,
-            stock_minimo=stock_minimo,
-            precio_compra_promedio=precio
-        )
-        session.add(inventario)
-        
-        # Si tiene ancho de bobina, crear atributos de rollo
-        if ancho_bobina > 0:
-            atributo_rollo = AtributoRolloImpresion(
+        if tipo_material == 'dimension':
+            # Crear inventario dimensional
+            inv_dim = InventarioDimensionalMaterial(
                 id_material=material.id_material,
-                ancho_fijo_rollo=ancho_bobina,
-                es_rollo_continuo=True
+                ancho_disponible=ancho_disponible,
+                largo_disponible=largo_disponible,
+                ancho_minimo=ancho_minimo,
+                largo_minimo=largo_minimo,
+                es_continuo=es_continuo
             )
-            session.add(atributo_rollo)
+            session.add(inv_dim)
+        else:
+            # Crear inventario de unidades
+            inventario = InventarioMaterial(
+                id_material=material.id_material,
+                cantidad_stock=cantidad,
+                stock_minimo=stock_minimo,
+                precio_compra_promedio=precio
+            )
+            session.add(inventario)
         
         session.commit()
         return material.id_material
@@ -540,10 +560,11 @@ def guardar_material(nombre, cantidad, unidad, stock_minimo=5, precio=0,
 
 
 def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, precio,
-                       tipo_material='unidad', sugerencia='', ancho_bobina=0.0,
-                       dimension_minima=0.0, dimension_disponible=0.0):
+                       tipo_material='unidad', sugerencia='', categoria_material='General',
+                       ancho_disponible=0.0, largo_disponible=0.0,
+                       ancho_minimo=0.0, largo_minimo=0.0, es_continuo=True):
     """
-    Actualiza un material existente con el nuevo esquema normalizado
+    Actualiza un material existente con el esquema normalizado
     """
     session = get_session()
     try:
@@ -551,11 +572,11 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         if not material:
             return False
         
-        # Buscar o crear tipo de material
-        tipo_mat = session.query(TipoMaterial).filter_by(nombre_tipo=tipo_material).first()
-        if not tipo_mat:
-            tipo_mat = TipoMaterial(nombre_tipo=tipo_material)
-            session.add(tipo_mat)
+        # Buscar o crear categoría de material
+        cat_mat = session.query(TipoMaterial).filter_by(nombre_tipo=categoria_material).first()
+        if not cat_mat:
+            cat_mat = TipoMaterial(nombre_tipo=categoria_material)
+            session.add(cat_mat)
             session.flush()
         
         # Buscar o crear unidad de medida
@@ -567,37 +588,54 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         
         # Actualizar material
         material.nombre_material = nombre
-        material.id_tipo_material = tipo_mat.id_tipo_material
+        material.id_tipo_material = cat_mat.id_tipo_material
         material.id_unidad_inventario = unidad_med.id_unidad
         material.sugerencia = sugerencia
         
-        # Actualizar o crear inventario
-        inventario = session.query(InventarioMaterial).filter_by(id_material=id_material).first()
-        if inventario:
-            inventario.cantidad_stock = cantidad
-            inventario.stock_minimo = stock_minimo
-            inventario.precio_compra_promedio = precio
-        else:
-            inventario = InventarioMaterial(
-                id_material=id_material,
-                cantidad_stock=cantidad,
-                stock_minimo=stock_minimo,
-                precio_compra_promedio=precio
-            )
-            session.add(inventario)
-        
-        # Actualizar o crear atributos de rollo
-        if ancho_bobina > 0:
-            atributo = session.query(AtributoRolloImpresion).filter_by(id_material=id_material).first()
-            if atributo:
-                atributo.ancho_fijo_rollo = ancho_bobina
+        if tipo_material == 'dimension':
+            # Eliminar inventario de unidades si existe
+            inv_unidad = session.query(InventarioMaterial).filter_by(id_material=id_material).first()
+            if inv_unidad:
+                session.delete(inv_unidad)
+            
+            # Actualizar o crear inventario dimensional
+            inv_dim = session.query(InventarioDimensionalMaterial).filter_by(id_material=id_material).first()
+            if inv_dim:
+                inv_dim.ancho_disponible = ancho_disponible
+                inv_dim.largo_disponible = largo_disponible
+                inv_dim.ancho_minimo = ancho_minimo
+                inv_dim.largo_minimo = largo_minimo
+                inv_dim.es_continuo = es_continuo
             else:
-                atributo = AtributoRolloImpresion(
+                inv_dim = InventarioDimensionalMaterial(
                     id_material=id_material,
-                    ancho_fijo_rollo=ancho_bobina,
-                    es_rollo_continuo=True
+                    ancho_disponible=ancho_disponible,
+                    largo_disponible=largo_disponible,
+                    ancho_minimo=ancho_minimo,
+                    largo_minimo=largo_minimo,
+                    es_continuo=es_continuo
                 )
-                session.add(atributo)
+                session.add(inv_dim)
+        else:
+            # Eliminar inventario dimensional si existe
+            inv_dim = session.query(InventarioDimensionalMaterial).filter_by(id_material=id_material).first()
+            if inv_dim:
+                session.delete(inv_dim)
+            
+            # Actualizar o crear inventario de unidades
+            inventario = session.query(InventarioMaterial).filter_by(id_material=id_material).first()
+            if inventario:
+                inventario.cantidad_stock = cantidad
+                inventario.stock_minimo = stock_minimo
+                inventario.precio_compra_promedio = precio
+            else:
+                inventario = InventarioMaterial(
+                    id_material=id_material,
+                    cantidad_stock=cantidad,
+                    stock_minimo=stock_minimo,
+                    precio_compra_promedio=precio
+                )
+                session.add(inventario)
         
         session.commit()
         return True
@@ -608,38 +646,131 @@ def actualizar_material(id_material, nombre, cantidad, unidad, stock_minimo, pre
         session.close()
 
 
-def guardar_nuevo_rollo(nombre, ancho_bobina, cantidad, unidad, stock_minimo=5, precio=0, 
-                       sugerencia='', dimension_minima=0.0):
+def agregar_stock_dimensional(id_material, ancho_agregar=0.0, largo_agregar=0.0):
     """
-    Crea un nuevo material en formato de rollo
+    Agrega dimensiones a un material dimensional (suma, no reemplaza)
+    
+    Args:
+        id_material: ID del material
+        ancho_agregar: Ancho a agregar (si aplica)
+        largo_agregar: Largo a agregar
+        
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    session = get_session()
+    try:
+        inv_dim = session.query(InventarioDimensionalMaterial).filter_by(id_material=id_material).first()
+        if inv_dim:
+            if largo_agregar > 0:
+                inv_dim.largo_disponible += largo_agregar
+            if ancho_agregar > 0:
+                inv_dim.ancho_disponible = ancho_agregar  # El ancho generalmente se reemplaza
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al agregar stock dimensional: {str(e)}")
+    finally:
+        session.close()
+
+
+def descontar_stock_dimensional(id_material, largo_usado=0.0):
+    """
+    Descuenta largo de un material dimensional
+    
+    Args:
+        id_material: ID del material
+        largo_usado: Largo a descontar
+        
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    session = get_session()
+    try:
+        inv_dim = session.query(InventarioDimensionalMaterial).filter_by(id_material=id_material).first()
+        if inv_dim:
+            inv_dim.largo_disponible -= largo_usado
+            if inv_dim.largo_disponible < 0:
+                inv_dim.largo_disponible = 0
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise Exception(f"Error al descontar stock dimensional: {str(e)}")
+    finally:
+        session.close()
+
+
+def obtener_materiales_dimensionales_bajo_stock():
+    """
+    Obtiene materiales dimensionales que están por debajo del mínimo
+    
+    Returns:
+        list: Lista de materiales dimensionales con stock bajo
+    """
+    session = get_session()
+    try:
+        materiales = session.query(Material).join(
+            InventarioDimensionalMaterial, Material.id_material == InventarioDimensionalMaterial.id_material
+        ).filter(
+            or_(
+                InventarioDimensionalMaterial.ancho_disponible <= InventarioDimensionalMaterial.ancho_minimo,
+                InventarioDimensionalMaterial.largo_disponible <= InventarioDimensionalMaterial.largo_minimo
+            )
+        ).all()
+        return [material.to_dict() for material in materiales]
+    finally:
+        session.close()
+
+
+def guardar_nuevo_rollo(nombre, ancho_disponible, largo_disponible, unidad, 
+                       ancho_minimo=0.0, largo_minimo=5.0, precio=0, 
+                       sugerencia='', es_continuo=True):
+    """
+    Crea un nuevo material en formato de rollo/bobina
     """
     return guardar_material(
         nombre=nombre,
-        cantidad=cantidad,
+        cantidad=0,
         unidad=unidad,
-        stock_minimo=stock_minimo,
+        stock_minimo=0,
         precio=precio,
-        tipo_material='Rollo',
+        tipo_material='dimension',
         sugerencia=sugerencia,
-        ancho_bobina=ancho_bobina
+        categoria_material='Rollo',
+        ancho_disponible=ancho_disponible,
+        largo_disponible=largo_disponible,
+        ancho_minimo=ancho_minimo,
+        largo_minimo=largo_minimo,
+        es_continuo=es_continuo
     )
 
 
-def actualizar_material_con_ancho(id_material, nombre, cantidad, unidad, stock_minimo, precio, ancho_bobina,
-                                 sugerencia='', dimension_minima=0.0):
+def actualizar_material_dimensional(id_material, nombre, unidad, 
+                                   ancho_disponible, largo_disponible,
+                                   ancho_minimo, largo_minimo, precio=0,
+                                   sugerencia='', es_continuo=True):
     """
-    Actualiza un material incluyendo el ancho de bobina
+    Actualiza un material dimensional (rollo/bobina)
     """
     return actualizar_material(
         id_material=id_material,
         nombre=nombre,
-        cantidad=cantidad,
+        cantidad=0,
         unidad=unidad,
-        stock_minimo=stock_minimo,
+        stock_minimo=0,
         precio=precio,
-        tipo_material='Rollo',
+        tipo_material='dimension',
         sugerencia=sugerencia,
-        ancho_bobina=ancho_bobina
+        categoria_material='Rollo',
+        ancho_disponible=ancho_disponible,
+        largo_disponible=largo_disponible,
+        ancho_minimo=ancho_minimo,
+        largo_minimo=largo_minimo,
+        es_continuo=es_continuo
     )
 
 

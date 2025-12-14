@@ -174,24 +174,51 @@ class PanelServicios(ctk.CTkFrame):
         """Muestra diálogo para agregar o editar servicio"""
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Nuevo Servicio" if servicio is None else "Editar Servicio")
-        dialogo.geometry("550x500")
+        dialogo.geometry("550x600")
         dialogo.transient(self)
         dialogo.grab_set()
 
         # Centrar ventana
         dialogo.update_idletasks()
         x = (dialogo.winfo_screenwidth() // 2) - (550 // 2)
-        y = (dialogo.winfo_screenheight() // 2) - (500 // 2)
+        y = (dialogo.winfo_screenheight() // 2) - (600 // 2)
         dialogo.geometry(f"+{x}+{y}")
 
+        scroll = ctk.CTkScrollableFrame(dialogo)
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+
         # Campos
-        ctk.CTkLabel(dialogo, text="Nombre del Servicio:", font=ctk.CTkFont(size=12)).pack(pady=(20, 5))
-        entry_nombre = ctk.CTkEntry(dialogo, width=450)
+        ctk.CTkLabel(scroll, text="Nombre del Servicio:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5), anchor="w")
+        entry_nombre = ctk.CTkEntry(scroll, width=450)
         entry_nombre.pack(pady=5)
         if servicio:
             entry_nombre.insert(0, servicio['nombre_servicio'])
 
-        ctk.CTkLabel(dialogo, text="Unidad de Cobro:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
+        # Tipo de Material (dimension o unidad)
+        ctk.CTkLabel(scroll, text="Tipo de Servicio:", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=(15, 5), anchor="w")
+        ctk.CTkLabel(scroll, text="💡 Define si el servicio requiere dimensiones (ancho × alto) o solo cantidad", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w")
+        
+        import tkinter as tk
+        tipo_material_var = tk.StringVar(value=servicio.get('tipo_material', 'unidad') if servicio else 'unidad')
+        
+        frame_tipo = ctk.CTkFrame(scroll, fg_color="gray20", corner_radius=8)
+        frame_tipo.pack(fill="x", pady=10)
+        
+        ctk.CTkRadioButton(
+            frame_tipo, 
+            text="📦 Por Unidad (tazas, llaveros, stickers...)", 
+            variable=tipo_material_var, 
+            value="unidad"
+        ).pack(side="left", padx=20, pady=10)
+        
+        ctk.CTkRadioButton(
+            frame_tipo, 
+            text="📏 Por Dimensión (gigantografías, lonas, vinilos...)", 
+            variable=tipo_material_var, 
+            value="dimension"
+        ).pack(side="left", padx=20, pady=10)
+
+        ctk.CTkLabel(scroll, text="Unidad de Cobro:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5), anchor="w")
         
         # Obtener unidades de la base de datos
         unidades = consultas.obtener_unidades_medida()
@@ -201,27 +228,27 @@ class PanelServicios(ctk.CTkFrame):
         if not unidades_nombres:
             unidades_nombres = ["m2", "cm2", "unidad", "ciento", "docena", "metro", "hora"]
         
-        combo_unidad = ctk.CTkComboBox(dialogo, values=unidades_nombres, width=450)
+        combo_unidad = ctk.CTkComboBox(scroll, values=unidades_nombres, width=450)
         combo_unidad.pack(pady=5)
         if servicio:
             combo_unidad.set(servicio['unidad_cobro'])
 
-        ctk.CTkLabel(dialogo, text="Precio Base (S/):", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
-        entry_precio = ctk.CTkEntry(dialogo, width=450)
+        ctk.CTkLabel(scroll, text="Precio Base (S/):", font=ctk.CTkFont(size=12)).pack(pady=(15, 5), anchor="w")
+        entry_precio = ctk.CTkEntry(scroll, width=450)
         entry_precio.pack(pady=5)
         if servicio:
             entry_precio.insert(0, str(servicio['precio_base']))
         else:
             entry_precio.insert(0, "0.00")
 
-        ctk.CTkLabel(dialogo, text="Máquina Sugerida:", font=ctk.CTkFont(size=12)).pack(pady=(10, 5))
+        ctk.CTkLabel(scroll, text="Máquina Sugerida:", font=ctk.CTkFont(size=12)).pack(pady=(15, 5), anchor="w")
 
         # Obtener máquinas
         maquinas = consultas.obtener_maquinas()
         maquinas_dict = {f"{m['nombre']} - {m['tipo']}": m['id_maquina'] for m in maquinas}
         maquinas_nombres = list(maquinas_dict.keys())
 
-        combo_maquina = ctk.CTkComboBox(dialogo, values=["Ninguna"] + maquinas_nombres, width=450)
+        combo_maquina = ctk.CTkComboBox(scroll, values=["Ninguna"] + maquinas_nombres, width=450)
         combo_maquina.pack(pady=5)
 
         if servicio and servicio['nombre_maquina']:
@@ -233,6 +260,7 @@ class PanelServicios(ctk.CTkFrame):
         def guardar():
             nombre = entry_nombre.get().strip()
             unidad = combo_unidad.get()
+            tipo_material = tipo_material_var.get()
 
             try:
                 precio = float(entry_precio.get())
@@ -252,11 +280,11 @@ class PanelServicios(ctk.CTkFrame):
                 if servicio:
                     consultas.actualizar_servicio(
                         servicio['id_servicio'],
-                        nombre, unidad, precio, id_maquina
+                        nombre, unidad, precio, id_maquina, tipo_material
                     )
                     messagebox.showinfo("Éxito", "Servicio actualizado correctamente")
                 else:
-                    consultas.guardar_servicio(nombre, unidad, precio, id_maquina)
+                    consultas.guardar_servicio(nombre, unidad, precio, id_maquina, tipo_material)
                     messagebox.showinfo("Éxito", "Servicio agregado correctamente")
 
                 dialogo.destroy()
@@ -266,14 +294,15 @@ class PanelServicios(ctk.CTkFrame):
                 messagebox.showerror("Error", f"Error al guardar: {str(e)}")
 
         btn_guardar = ctk.CTkButton(
-            dialogo,
-            text="Guardar",
+            scroll,
+            text="💾 Guardar Servicio",
             command=guardar,
             height=40,
             font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=COLOR_SUCCESS
+            fg_color=COLOR_SUCCESS,
+            width=200
         )
-        btn_guardar.pack(pady=30)
+        btn_guardar.pack(pady=25)
 
     def _editar_servicio(self, servicio):
         """Edita un servicio existente"""

@@ -10,7 +10,7 @@ from .models import (
     Usuario, Rol, Permiso, MaquinaServicio,
     # Nuevas tablas del sistema experto
     UnidadMedida, TipoMaterial, TipoMaquina, CapacidadMaquina,
-    InventarioMaterial, AtributoRolloImpresion
+    InventarioMaterial, InventarioDimensionalMaterial
 )
 
 __all__ = [
@@ -37,6 +37,6 @@ __all__ = [
     'TipoMaquina',
     'CapacidadMaquina',
     'InventarioMaterial',
-    'AtributoRolloImpresion'
+    'InventarioDimensionalMaterial'
 ]
 

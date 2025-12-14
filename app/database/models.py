@@ -160,7 +160,7 @@ class Material(Base):
     tipo_material = relationship('TipoMaterial', back_populates='materiales')
     unidad_inventario = relationship('UnidadMedida', back_populates='materiales')
     inventario = relationship('InventarioMaterial', uselist=False, back_populates='material')
-    atributos_rollo = relationship('AtributoRolloImpresion', uselist=False, back_populates='material')
+    inventario_dimensional = relationship('InventarioDimensionalMaterial', uselist=False, back_populates='material')
     servicios_compatibles = relationship('ServicioMaterial', back_populates='material')
     
     def __repr__(self):
@@ -170,19 +170,28 @@ class Material(Base):
         """Diccionario compatible con models.py para no romper UI"""
         # Obtener datos de inventario si existen
         inv = self.inventario
-        rollo = self.atributos_rollo
+        dim = self.inventario_dimensional
+        
+        # Determinar si es material dimensional o de unidades
+        es_dimensional = dim is not None
+        
         return {
             'id_material': self.id_material,
             'nombre_material': self.nombre_material,
-            'tipo_material': self.tipo_material.nombre_tipo if self.tipo_material else 'unidad',
+            'tipo_material': 'dimension' if es_dimensional else 'unidad',
+            'categoria_material': self.tipo_material.nombre_tipo if self.tipo_material else '',
             'sugerencia': self.sugerencia if self.sugerencia else '',
+            # Campos para materiales de unidad
             'cantidad_stock': inv.cantidad_stock if inv else 0.0,
             'unidad_medida': self.unidad_inventario.abreviacion if self.unidad_inventario else '',
             'stock_minimo': inv.stock_minimo if inv else 5.0,
             'precio_por_unidad': inv.precio_compra_promedio if inv else 0.0,
-            'ancho_bobina': rollo.ancho_fijo_rollo if rollo else 0.0,
-            'dimension_minima': 0.0,
-            'dimension_disponible': inv.cantidad_stock if inv else 0.0
+            # Campos para materiales dimensionales
+            'ancho_disponible': dim.ancho_disponible if dim else 0.0,
+            'largo_disponible': dim.largo_disponible if dim else 0.0,
+            'ancho_minimo': dim.ancho_minimo if dim else 0.0,
+            'largo_minimo': dim.largo_minimo if dim else 0.0,
+            'es_continuo': dim.es_continuo if dim else False
         }
     
     def esta_bajo_stock(self):
@@ -215,27 +224,46 @@ class InventarioMaterial(Base):
             'precio_compra_promedio': self.precio_compra_promedio
         }
 
-class AtributoRolloImpresion(Base):
+class InventarioDimensionalMaterial(Base):
     """
-    Atributos específicos para materiales que vienen en rollo (Lonas, Vinilos).
+    Inventario dimensional para materiales en rollo/bobina.
+    Separa el concepto de 'cuánto hay' en términos de dimensiones.
     """
-    __tablename__ = 'atributos_rollos_impresion'
+    __tablename__ = 'inventario_dimensional_materiales'
     
-    id_atributo = Column(Integer, primary_key=True, autoincrement=True)
+    id_dimensional = Column(Integer, primary_key=True, autoincrement=True)
     id_material = Column(Integer, ForeignKey('materiales.id_material'), unique=True, nullable=False)
     
-    ancho_fijo_rollo = Column(Float, nullable=False) # El ancho físico del rollo
-    es_rollo_continuo = Column(Boolean, default=True)
+    # Dimensiones disponibles del material
+    ancho_disponible = Column(Float, default=0.0)  # Ancho del rollo/bobina en metros
+    largo_disponible = Column(Float, default=0.0)  # Largo usable total en metros
     
-    material = relationship('Material', back_populates='atributos_rollo')
+    # Mínimos operativos para alertas
+    ancho_minimo = Column(Float, default=0.0)  # Ancho mínimo aceptable
+    largo_minimo = Column(Float, default=0.0)  # Largo mínimo para alerta
+    
+    # Tipo de material dimensional
+    es_continuo = Column(Boolean, default=True)  # True=rollo infinito, False=plancha fija
+    
+    material = relationship('Material', back_populates='inventario_dimensional')
+    
+    def __repr__(self):
+        return f"<InventarioDimensional(material={self.id_material}, ancho={self.ancho_disponible}, largo={self.largo_disponible})>"
     
     def to_dict(self):
         return {
-            'id_atributo': self.id_atributo,
+            'id_dimensional': self.id_dimensional,
             'id_material': self.id_material,
-            'ancho_fijo_rollo': self.ancho_fijo_rollo,
-            'es_rollo_continuo': self.es_rollo_continuo
+            'ancho_disponible': self.ancho_disponible,
+            'largo_disponible': self.largo_disponible,
+            'ancho_minimo': self.ancho_minimo,
+            'largo_minimo': self.largo_minimo,
+            'es_continuo': self.es_continuo
         }
+    
+    def esta_bajo_minimo(self):
+        """Verifica si el material está por debajo del mínimo"""
+        return self.ancho_disponible <= self.ancho_minimo or self.largo_disponible <= self.largo_minimo
 
 # ==========================================
 # 3. SERVICIOS Y REGLAS DE NEGOCIO
@@ -251,6 +279,10 @@ class Servicio(Base):
     nombre_servicio = Column(String, nullable=False)
     id_unidad_cobro = Column(Integer, ForeignKey('unidades_medida.id_unidad'), nullable=False)
     precio_base = Column(Float, default=0.0) # Precio de venta base
+    
+    # Tipo de material para saber si requiere dimensiones
+    # 'dimension' = requiere ancho/alto, 'unidad' = solo cantidad
+    tipo_material = Column(String, default='unidad')  # 'dimension' o 'unidad'
     
     # Sugerencia por defecto (opcional, el sistema experto debería inferirlo, pero sirve de fallback)
     id_maquina_sugerida = Column(Integer, ForeignKey('maquinas.id_maquina'), nullable=True)
@@ -272,6 +304,7 @@ class Servicio(Base):
             'nombre_servicio': self.nombre_servicio,
             'unidad_cobro': self.unidad_cobro.abreviacion if self.unidad_cobro else '',
             'precio_base': self.precio_base,
+            'tipo_material': self.tipo_material if self.tipo_material else 'unidad',
             'id_maquina_sugerida': self.id_maquina_sugerida,
             'nombre_maquina': self.maquina_sugerida.nombre if self.maquina_sugerida else None,
             'tipo_maquina': self.maquina_sugerida.tipo_maquina.nombre_tipo if self.maquina_sugerida and self.maquina_sugerida.tipo_maquina else None
