@@ -46,6 +46,9 @@ class DatabaseConnection:
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
         
+        # Ejecutar migraciones antes de crear tablas
+        self._ejecutar_migraciones()
+        
         # Crear todas las tablas definidas en los modelos
         Base.metadata.create_all(self._engine)
         
@@ -99,6 +102,32 @@ class DatabaseConnection:
     def remove_session(self):
         """Remueve la sesión actual del registro de scoped_session"""
         self._Session.remove()
+
+    def _ejecutar_migraciones(self):
+        """
+        Ejecuta migraciones para actualizar el esquema de bases de datos existentes.
+        Agrega columnas nuevas que no existan en la BD.
+        """
+        from sqlalchemy import text, inspect
+        
+        with self._engine.connect() as conn:
+            inspector = inspect(self._engine)
+            
+            # Verificar si la tabla servicios existe
+            if 'servicios' in inspector.get_table_names():
+                columnas_servicios = [col['name'] for col in inspector.get_columns('servicios')]
+                
+                # Migración: agregar tipo_material a servicios si no existe
+                if 'tipo_material' not in columnas_servicios:
+                    conn.execute(text("ALTER TABLE servicios ADD COLUMN tipo_material VARCHAR DEFAULT 'unidad'"))
+                    conn.commit()
+                    print("✅ Migración: columna 'tipo_material' agregada a servicios")
+            
+            # Verificar si existe la tabla vieja atributos_rollos_impresion y crear la nueva
+            if 'atributos_rollos_impresion' in inspector.get_table_names():
+                # La tabla vieja existe, pero la nueva será creada por create_all
+                # Podríamos migrar datos aquí si fuera necesario
+                print("⚠️ Tabla 'atributos_rollos_impresion' detectada (legacy)")
 
     def _cargar_datos_iniciales(self):
         """

@@ -55,7 +55,7 @@ bdist_msi_options = {
     "add_to_path": False,
     "initial_target_dir": r"[ProgramFilesFolder]\SistemaImprentaExperto",
     "upgrade_code": "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",  # ID único (no cambiar)
-    "install_icon": None,  # Agregar ruta al icono .ico si tienes uno
+    "install_icon": "favicon.ico",  # Icono del instalador
 }
 
 # ========== CONFIGURACIÓN DEL EJECUTABLE ==========
@@ -70,7 +70,7 @@ executables = [
         "main.py",
         base=base,
         target_name="SistemaImprentaExperto.exe",
-        icon=None,  # Agregar ruta al icono .ico si tienes uno
+        icon="favicon.ico",  # Icono del ejecutable
         shortcut_name="Sistema Imprenta Experto",
         shortcut_dir="DesktopFolder"
     )
@@ -79,7 +79,7 @@ executables = [
 # ========== SETUP ==========
 setup(
     name="Sistema Imprenta Experto",
-    version="2.1.0",
+    version="2.1.4",
     description="Sistema Experto de Gestión para Imprenta",
     author="Oliver",
     options={

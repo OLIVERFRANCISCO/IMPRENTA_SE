@@ -30,7 +30,7 @@ class ImprentaApp(ctk.CTk):
     # Constantes de la clase para mejor organización
     SIDEBAR_WIDTH = 240
     LOGO_FONT_SIZE = 32
-    VERSION = "v1.0.0"
+    VERSION = "v2.1.0"
     
     # Iconos SVG para cada sección (Unicode)
     ICONOS = {

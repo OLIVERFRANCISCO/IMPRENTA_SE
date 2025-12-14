@@ -102,8 +102,8 @@ class Maquina(Base):
     
     # Relaciones
     tipo_maquina = relationship('TipoMaquina', back_populates='maquinas')
-    capacidad = relationship('CapacidadMaquina', uselist=False, back_populates='maquina')
-    servicios_compatibles = relationship('MaquinaServicio', back_populates='maquina')
+    capacidad = relationship('CapacidadMaquina', uselist=False, back_populates='maquina', cascade='all, delete-orphan')
+    servicios_compatibles = relationship('MaquinaServicio', back_populates='maquina', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f"<Maquina(id={self.id_maquina}, nombre='{self.nombre}')>"
@@ -159,9 +159,9 @@ class Material(Base):
     # Relaciones
     tipo_material = relationship('TipoMaterial', back_populates='materiales')
     unidad_inventario = relationship('UnidadMedida', back_populates='materiales')
-    inventario = relationship('InventarioMaterial', uselist=False, back_populates='material')
-    inventario_dimensional = relationship('InventarioDimensionalMaterial', uselist=False, back_populates='material')
-    servicios_compatibles = relationship('ServicioMaterial', back_populates='material')
+    inventario = relationship('InventarioMaterial', uselist=False, back_populates='material', cascade='all, delete-orphan')
+    inventario_dimensional = relationship('InventarioDimensionalMaterial', uselist=False, back_populates='material', cascade='all, delete-orphan')
+    servicios_compatibles = relationship('ServicioMaterial', back_populates='material', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f"<Material(id={self.id_material}, nombre='{self.nombre_material}')>"
