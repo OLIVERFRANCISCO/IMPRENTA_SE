@@ -79,9 +79,9 @@ executables = [
 # ========== SETUP ==========
 setup(
     name="Sistema Imprenta Experto",
-    version="2.1.4",
+    version="2.3.2",
     description="Sistema Experto de Gestión para Imprenta",
-    author="Oliver",
+    author="Oliver aguelaoliver@gmail.com",
     options={
         "build_exe": build_exe_options,
         "bdist_msi": bdist_msi_options

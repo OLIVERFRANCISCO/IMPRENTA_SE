@@ -154,7 +154,7 @@ class LoginWindow(ctk.CTk):
         # Footer
         ctk.CTkLabel(
             main_frame,
-            text="Sistema Experto de Gestión • v1.0.0",
+            text="Sistema Experto de Gestión • v2.0.0",
             font=ctk.CTkFont(size=11),
             text_color="gray"
         ).pack(side="bottom", pady=(10, 0))
