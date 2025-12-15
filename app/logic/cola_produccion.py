@@ -1,9 +1,53 @@
 """
 Módulo de Gestión de Cola de Producción
 Maneja la planificación de trabajos y cálculo de fechas de entrega
+
+SISTEMA EXPERTO - Componente de Planificación Temporal
+Este módulo usa configuraciones dinámicas de la BD para calcular
+tiempos de entrega basándose en la carga de trabajo real.
 """
 from datetime import datetime, timedelta
-from app.database.consultas import obtener_pedidos
+from app.database.consultas import obtener_pedidos, obtener_configuracion_produccion, obtener_configuracion
+
+
+def _obtener_config_produccion():
+    """
+    Obtiene la configuración de producción desde la BD
+    con valores por defecto como fallback
+    
+    Returns:
+        dict: Configuración de producción
+    """
+    try:
+        return obtener_configuracion_produccion()
+    except Exception:
+        # Fallback si hay error de BD
+        return {
+            'hora_apertura': 8,
+            'hora_cierre': 18,
+            'dias_laborales': '1,2,3,4,5,6',
+            'horas_laborales_dia': 8,
+            'tiempo_promedio_pedido': 4.0,
+            'recargo_urgente': 30,
+        }
+
+
+def _es_dia_laboral(fecha, dias_laborales_str):
+    """
+    Verifica si una fecha es día laboral según la configuración
+    
+    Args:
+        fecha: datetime a verificar
+        dias_laborales_str: String con días laborales "1,2,3,4,5,6"
+    
+    Returns:
+        bool: True si es día laboral
+    """
+    # Convertir string a lista de enteros (1=Lunes, 7=Domingo)
+    dias_config = [int(d.strip()) for d in dias_laborales_str.split(',') if d.strip()]
+    # Python usa 0=Lunes, 6=Domingo, ajustamos sumando 1
+    dia_semana = fecha.weekday() + 1
+    return dia_semana in dias_config
 
 
 def estimar_tiempo_produccion_por_tipo(tipo_servicio, area_m2=0, cantidad=1):
@@ -49,6 +93,11 @@ def estimar_tiempo_produccion_por_tipo(tipo_servicio, area_m2=0, cantidad=1):
 def calcular_fecha_entrega_con_cola(horas_requeridas, es_urgente=False):
     """
     Calcula la fecha de entrega considerando la cola de producción actual
+    
+    USA CONFIGURACIÓN DINÁMICA DE BD:
+    - Horas laborales por día
+    - Días laborales de la semana
+    - Recargo por urgencia
 
     Args:
         horas_requeridas (float): Horas necesarias para el trabajo
@@ -59,9 +108,13 @@ def calcular_fecha_entrega_con_cola(horas_requeridas, es_urgente=False):
             'fecha_entrega': datetime,
             'dias_habiles': int,
             'recargo_porcentaje': float,
-            'explicacion': str
+            'explicacion': str,
+            'config_usada': dict
         }
     """
+    # Obtener configuración dinámica
+    config = _obtener_config_produccion()
+    
     # Obtener carga actual de trabajo
     info_cola = obtener_info_cola_produccion()
     horas_pendientes = info_cola['horas_pendientes']
@@ -69,9 +122,9 @@ def calcular_fecha_entrega_con_cola(horas_requeridas, es_urgente=False):
     # Calcular horas totales
     horas_totales = horas_pendientes + horas_requeridas
 
-    # Configuración de trabajo
-    HORAS_LABORALES_POR_DIA = 8
-    DIAS_LABORALES_POR_SEMANA = 6  # Lunes a Sábado
+    # Usar configuración dinámica
+    HORAS_LABORALES_POR_DIA = config['horas_laborales_dia']
+    dias_laborales_str = config['dias_laborales']
 
     # Calcular días necesarios
     dias_necesarios = horas_totales / HORAS_LABORALES_POR_DIA
@@ -79,28 +132,29 @@ def calcular_fecha_entrega_con_cola(horas_requeridas, es_urgente=False):
     # Si es urgente, se prioriza (50% más rápido pero con recargo)
     if es_urgente:
         dias_necesarios = dias_necesarios * 0.5
-        recargo_porcentaje = 30.0  # 30% de recargo por urgencia
+        recargo_porcentaje = float(config['recargo_urgente'])
     else:
         recargo_porcentaje = 0.0
 
     # Redondear hacia arriba
     dias_necesarios = int(dias_necesarios) + 1
 
-    # Calcular fecha de entrega (solo días hábiles)
+    # Calcular fecha de entrega (solo días laborales configurados)
     fecha_actual = datetime.now()
     dias_agregados = 0
     fecha_entrega = fecha_actual
 
     while dias_agregados < dias_necesarios:
         fecha_entrega += timedelta(days=1)
-        # Saltar domingos (weekday: 0=Lunes, 6=Domingo)
-        if fecha_entrega.weekday() != 6:
+        # Verificar si es día laboral según configuración
+        if _es_dia_laboral(fecha_entrega, dias_laborales_str):
             dias_agregados += 1
 
     # Generar explicación
     explicacion_partes = []
     explicacion_partes.append(f"Horas pendientes en cola: {horas_pendientes:.1f}h")
     explicacion_partes.append(f"Horas de este trabajo: {horas_requeridas:.1f}h")
+    explicacion_partes.append(f"Jornada: {HORAS_LABORALES_POR_DIA}h/día")
     explicacion_partes.append(f"Total: {horas_totales:.1f}h = {dias_necesarios} días hábiles")
 
     if es_urgente:
@@ -112,23 +166,32 @@ def calcular_fecha_entrega_con_cola(horas_requeridas, es_urgente=False):
         'fecha_entrega': fecha_entrega,
         'dias_habiles': dias_necesarios,
         'recargo_porcentaje': recargo_porcentaje,
-        'explicacion': explicacion
+        'explicacion': explicacion,
+        'config_usada': config
     }
 
 
 def obtener_info_cola_produccion():
     """
     Obtiene información sobre el estado actual de la cola de producción
+    
+    USA CONFIGURACIÓN DINÁMICA DE BD:
+    - Tiempo promedio por pedido
+    - Horas laborales por día
 
     Returns:
         dict: {
             'pedidos_en_cola': int,
             'horas_pendientes': float,
             'dias_ocupados': int,
-            'estado': str
+            'estado': str,
+            'config': dict
         }
     """
     try:
+        # Obtener configuración dinámica
+        config = _obtener_config_produccion()
+        
         # Obtener pedidos pendientes y en proceso
         pedidos = obtener_pedidos()
 
@@ -147,29 +210,30 @@ def obtener_info_cola_produccion():
                                                    'Listo para Entrega']
         ]
 
-        # Estimar horas pendientes (aproximación simple)
-        # En un sistema real, cada pedido tendría su tiempo estimado guardado
-        horas_pendientes = len(pedidos_activos) * 8.0  # Promedio de 8 horas por pedido
+        # Estimar horas pendientes usando configuración dinámica
+        tiempo_promedio = config['tiempo_promedio_pedido']
+        horas_pendientes = len(pedidos_activos) * tiempo_promedio
 
         # Calcular días ocupados
-        HORAS_LABORALES_POR_DIA = 8
-        dias_ocupados = int(horas_pendientes / HORAS_LABORALES_POR_DIA) + 1
+        HORAS_LABORALES_POR_DIA = config['horas_laborales_dia']
+        dias_ocupados = int(horas_pendientes / HORAS_LABORALES_POR_DIA) + 1 if horas_pendientes > 0 else 0
 
         # Determinar estado de la producción
         if dias_ocupados <= 2:
-            estado = "Baja carga"
+            estado = "🟢 Baja carga"
         elif dias_ocupados <= 5:
-            estado = "Carga normal"
+            estado = "🟡 Carga normal"
         elif dias_ocupados <= 10:
-            estado = "Alta carga"
+            estado = "🟠 Alta carga"
         else:
-            estado = "Saturado"
+            estado = "🔴 Saturado"
 
         return {
             'pedidos_en_cola': len(pedidos_activos),
             'horas_pendientes': horas_pendientes,
             'dias_ocupados': dias_ocupados,
-            'estado': estado
+            'estado': estado,
+            'config': config
         }
 
     except Exception as e:
@@ -178,7 +242,8 @@ def obtener_info_cola_produccion():
             'pedidos_en_cola': 0,
             'horas_pendientes': 0.0,
             'dias_ocupados': 0,
-            'estado': "Sin información"
+            'estado': "⚪ Sin información",
+            'config': None
         }
 
 
@@ -246,6 +311,8 @@ def priorizar_pedido(id_pedido):
 def estimar_capacidad_disponible(dias=7):
     """
     Estima la capacidad de producción disponible en los próximos días
+    
+    USA CONFIGURACIÓN DINÁMICA DE BD
 
     Args:
         dias (int): Número de días a calcular
@@ -253,9 +320,10 @@ def estimar_capacidad_disponible(dias=7):
     Returns:
         dict: Capacidad disponible
     """
+    config = _obtener_config_produccion()
     info_cola = obtener_info_cola_produccion()
 
-    HORAS_LABORALES_POR_DIA = 8
+    HORAS_LABORALES_POR_DIA = config['horas_laborales_dia']
     capacidad_total = dias * HORAS_LABORALES_POR_DIA
     horas_ocupadas = min(info_cola['horas_pendientes'], capacidad_total)
     horas_disponibles = capacidad_total - horas_ocupadas
@@ -267,6 +335,7 @@ def estimar_capacidad_disponible(dias=7):
         'horas_totales': capacidad_total,
         'horas_ocupadas': horas_ocupadas,
         'horas_disponibles': horas_disponibles,
-        'porcentaje_disponible': porcentaje_disponible
+        'porcentaje_disponible': porcentaje_disponible,
+        'horas_por_dia': HORAS_LABORALES_POR_DIA
     }
 

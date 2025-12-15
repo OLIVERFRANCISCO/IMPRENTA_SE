@@ -10,7 +10,7 @@ from app.database.models import (
     Cliente, Maquina, Material, EstadoPedido, Servicio, 
     Pedido, DetallePedido, ConsumoMaterial, ServicioMaterial, MaquinaServicio,
     TipoMaquina, TipoMaterial, UnidadMedida, InventarioMaterial, InventarioDimensionalMaterial,
-    CapacidadMaquina, PrecioEscalonado, RestriccionCantidad
+    CapacidadMaquina, PrecioEscalonado, RestriccionCantidad, ConfiguracionSistema
 )
 
 
@@ -2412,3 +2412,249 @@ def obtener_servicios_disponibles_para_maquina(id_maquina):
         return [servicio.to_dict() for servicio in servicios]
     finally:
         session.close()
+
+
+# ========== CONFIGURACIÓN DEL SISTEMA ==========
+
+# Valores por defecto para inicializar la BD
+CONFIGURACIONES_DEFECTO = [
+    # Producción - Horarios y días laborales
+    {'clave': 'hora_apertura', 'valor': '8', 'tipo_dato': 'int', 'categoria': 'produccion', 
+     'descripcion': 'Hora de apertura del taller (formato 24h)'},
+    {'clave': 'hora_cierre', 'valor': '18', 'tipo_dato': 'int', 'categoria': 'produccion',
+     'descripcion': 'Hora de cierre del taller (formato 24h)'},
+    {'clave': 'dias_laborales', 'valor': '1,2,3,4,5,6', 'tipo_dato': 'str', 'categoria': 'produccion',
+     'descripcion': 'Días laborales (1=Lunes, 7=Domingo). Separados por coma'},
+    {'clave': 'horas_laborales_dia', 'valor': '8', 'tipo_dato': 'int', 'categoria': 'produccion',
+     'descripcion': 'Horas de trabajo efectivas por día'},
+    {'clave': 'tiempo_promedio_pedido', 'valor': '4', 'tipo_dato': 'float', 'categoria': 'produccion',
+     'descripcion': 'Tiempo promedio en horas para completar un pedido'},
+    
+    # Negocio - Márgenes y tiempos
+    {'clave': 'margen_ganancia_minimo', 'valor': '30', 'tipo_dato': 'int', 'categoria': 'negocio',
+     'descripcion': 'Margen de ganancia mínimo (%)'},
+    {'clave': 'margen_ganancia_normal', 'valor': '50', 'tipo_dato': 'int', 'categoria': 'negocio',
+     'descripcion': 'Margen de ganancia estándar (%)'},
+    {'clave': 'margen_ganancia_premium', 'valor': '70', 'tipo_dato': 'int', 'categoria': 'negocio',
+     'descripcion': 'Margen de ganancia premium (%)'},
+    {'clave': 'recargo_urgente', 'valor': '30', 'tipo_dato': 'int', 'categoria': 'negocio',
+     'descripcion': 'Recargo por pedidos urgentes (%)'},
+    {'clave': 'horas_minimas_anticipacion', 'valor': '24', 'tipo_dato': 'int', 'categoria': 'negocio',
+     'descripcion': 'Horas mínimas de anticipación para pedidos'},
+    
+    # Inventario - Alertas
+    {'clave': 'stock_minimo_porcentaje', 'valor': '20', 'tipo_dato': 'int', 'categoria': 'inventario',
+     'descripcion': 'Porcentaje para alerta de stock bajo (%)'},
+    {'clave': 'stock_critico_porcentaje', 'valor': '10', 'tipo_dato': 'int', 'categoria': 'inventario',
+     'descripcion': 'Porcentaje para alerta de stock crítico (%)'},
+    {'clave': 'metros_minimos_rollo', 'valor': '5', 'tipo_dato': 'float', 'categoria': 'inventario',
+     'descripcion': 'Metros mínimos en rollo para alerta'},
+    
+    # Técnico - Impresión
+    {'clave': 'margen_tecnico_impresion', 'valor': '0.05', 'tipo_dato': 'float', 'categoria': 'tecnico',
+     'descripcion': 'Margen técnico para impresión (metros)'},
+    {'clave': 'solapamiento_paños', 'valor': '0.02', 'tipo_dato': 'float', 'categoria': 'tecnico',
+     'descripcion': 'Solapamiento entre paños para unión (metros)'},
+    {'clave': 'ancho_maximo_default', 'valor': '2.5', 'tipo_dato': 'float', 'categoria': 'tecnico',
+     'descripcion': 'Ancho máximo por defecto para máquinas sin configurar (metros)'},
+]
+
+
+def obtener_configuraciones(categoria=None):
+    """
+    Obtiene todas las configuraciones del sistema
+    
+    Args:
+        categoria: Filtrar por categoría (opcional)
+    
+    Returns:
+        list: Lista de diccionarios con configuraciones
+    """
+    session = get_session()
+    try:
+        query = session.query(ConfiguracionSistema)
+        if categoria:
+            query = query.filter(ConfiguracionSistema.categoria == categoria)
+        configs = query.order_by(ConfiguracionSistema.categoria, ConfiguracionSistema.clave).all()
+        return [c.to_dict() for c in configs]
+    finally:
+        session.close()
+
+
+def obtener_configuracion(clave, default=None):
+    """
+    Obtiene el valor de una configuración específica
+    
+    Args:
+        clave: Clave de la configuración
+        default: Valor por defecto si no existe
+    
+    Returns:
+        Valor de la configuración (tipado correctamente)
+    """
+    session = get_session()
+    try:
+        config = session.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == clave
+        ).first()
+        
+        if config:
+            return config.get_valor_tipado()
+        return default
+    finally:
+        session.close()
+
+
+def guardar_configuracion(clave, valor, tipo_dato='str', categoria='general', descripcion=None):
+    """
+    Guarda o actualiza una configuración
+    
+    Args:
+        clave: Identificador único
+        valor: Valor a guardar
+        tipo_dato: Tipo de dato ('str', 'int', 'float', 'bool', 'json')
+        categoria: Categoría para agrupar
+        descripcion: Descripción para el usuario
+    
+    Returns:
+        dict: Configuración guardada
+    """
+    session = get_session()
+    try:
+        config = session.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == clave
+        ).first()
+        
+        if config:
+            config.valor = str(valor)
+            config.tipo_dato = tipo_dato
+            if categoria:
+                config.categoria = categoria
+            if descripcion:
+                config.descripcion = descripcion
+        else:
+            config = ConfiguracionSistema(
+                clave=clave,
+                valor=str(valor),
+                tipo_dato=tipo_dato,
+                categoria=categoria,
+                descripcion=descripcion
+            )
+            session.add(config)
+        
+        session.commit()
+        session.refresh(config)
+        return config.to_dict()
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def actualizar_configuracion(clave, valor):
+    """
+    Actualiza solo el valor de una configuración existente
+    
+    Args:
+        clave: Clave de la configuración
+        valor: Nuevo valor
+    
+    Returns:
+        bool: True si se actualizó, False si no existe
+    """
+    session = get_session()
+    try:
+        config = session.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == clave
+        ).first()
+        
+        if config:
+            config.valor = str(valor)
+            session.commit()
+            return True
+        return False
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def eliminar_configuracion(clave):
+    """Elimina una configuración"""
+    session = get_session()
+    try:
+        config = session.query(ConfiguracionSistema).filter(
+            ConfiguracionSistema.clave == clave
+        ).first()
+        
+        if config:
+            session.delete(config)
+            session.commit()
+            return True
+        return False
+    finally:
+        session.close()
+
+
+def inicializar_configuraciones_defecto():
+    """
+    Inicializa las configuraciones por defecto si no existen
+    Se llama al iniciar la aplicación
+    """
+    session = get_session()
+    try:
+        for cfg in CONFIGURACIONES_DEFECTO:
+            existe = session.query(ConfiguracionSistema).filter(
+                ConfiguracionSistema.clave == cfg['clave']
+            ).first()
+            
+            if not existe:
+                nueva = ConfiguracionSistema(
+                    clave=cfg['clave'],
+                    valor=cfg['valor'],
+                    tipo_dato=cfg['tipo_dato'],
+                    categoria=cfg['categoria'],
+                    descripcion=cfg['descripcion']
+                )
+                session.add(nueva)
+        
+        session.commit()
+    except SQLAlchemyError:
+        session.rollback()
+    finally:
+        session.close()
+
+
+def obtener_configuracion_produccion():
+    """
+    Obtiene todas las configuraciones de producción como diccionario
+    Útil para cola_produccion.py
+    
+    Returns:
+        dict: Configuraciones de producción
+    """
+    return {
+        'hora_apertura': obtener_configuracion('hora_apertura', 8),
+        'hora_cierre': obtener_configuracion('hora_cierre', 18),
+        'dias_laborales': obtener_configuracion('dias_laborales', '1,2,3,4,5,6'),
+        'horas_laborales_dia': obtener_configuracion('horas_laborales_dia', 8),
+        'tiempo_promedio_pedido': obtener_configuracion('tiempo_promedio_pedido', 4.0),
+        'recargo_urgente': obtener_configuracion('recargo_urgente', 30),
+    }
+
+
+def obtener_configuracion_negocio():
+    """
+    Obtiene todas las configuraciones de negocio como diccionario
+    
+    Returns:
+        dict: Configuraciones de negocio
+    """
+    return {
+        'margen_ganancia_minimo': obtener_configuracion('margen_ganancia_minimo', 30),
+        'margen_ganancia_normal': obtener_configuracion('margen_ganancia_normal', 50),
+        'margen_ganancia_premium': obtener_configuracion('margen_ganancia_premium', 70),
+        'horas_minimas_anticipacion': obtener_configuracion('horas_minimas_anticipacion', 24),
+    }

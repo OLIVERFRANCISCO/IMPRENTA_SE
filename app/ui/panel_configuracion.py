@@ -38,7 +38,9 @@ class PanelConfiguracion(ctk.CTkFrame):
         self.tabview = ctk.CTkTabview(self, corner_radius=15)
         self.tabview.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
-        # Crear pestañas (tipos_material NO se configura desde aquí)
+        # Crear pestañas
+        self.tab_sistema = self.tabview.add("🏭 Sistema")
+        self.tab_produccion = self.tabview.add("⏰ Producción")
         self.tab_unidades = self.tabview.add("📏 Unidades")
         self.tab_tipos_maquina = self.tabview.add("🔧 Tipos Máquina")
         self.tab_estados = self.tabview.add("📋 Estados Pedido")
@@ -46,11 +48,378 @@ class PanelConfiguracion(ctk.CTkFrame):
         self.tab_restricciones = self.tabview.add("🔢 Restricciones")
 
         # Configurar cada pestaña
+        self._configurar_tab_sistema()
+        self._configurar_tab_produccion()
         self._configurar_tab_unidades()
         self._configurar_tab_tipos_maquina()
         self._configurar_tab_estados()
         self._configurar_tab_precios()
         self._configurar_tab_restricciones()
+        
+        # Inicializar configuraciones por defecto
+        try:
+            consultas.inicializar_configuraciones_defecto()
+        except Exception:
+            pass
+
+
+    # ========== CONFIGURACIÓN DEL SISTEMA (NEGOCIO) ==========
+    def _configurar_tab_sistema(self):
+        """Configura la pestaña de configuración general del sistema"""
+        self.tab_sistema.grid_rowconfigure(1, weight=1)
+        self.tab_sistema.grid_columnconfigure(0, weight=1)
+
+        # Frame de descripción
+        frame_desc = ctk.CTkFrame(self.tab_sistema, fg_color=("gray85", "gray20"))
+        frame_desc.grid(row=0, column=0, sticky="ew", pady=(0, 15), padx=10)
+        
+        ctk.CTkLabel(
+            frame_desc,
+            text="💡 Configuración de parámetros de negocio e inventario",
+            font=ctk.CTkFont(size=14),
+            text_color=COLOR_PRIMARY
+        ).pack(pady=10)
+
+        # Frame scrollable para configuraciones
+        self.scroll_sistema = ctk.CTkScrollableFrame(self.tab_sistema)
+        self.scroll_sistema.grid(row=1, column=0, sticky="nsew", padx=10)
+        self.scroll_sistema.grid_columnconfigure(1, weight=1)
+
+        self._cargar_config_sistema()
+
+    def _cargar_config_sistema(self):
+        """Carga las configuraciones de negocio e inventario"""
+        for widget in self.scroll_sistema.winfo_children():
+            widget.destroy()
+
+        # Obtener configuraciones
+        configs_negocio = consultas.obtener_configuraciones('negocio')
+        configs_inventario = consultas.obtener_configuraciones('inventario')
+        configs_tecnico = consultas.obtener_configuraciones('tecnico')
+
+        self.entries_config = {}
+        fila = 0
+
+        # Sección: Márgenes de Ganancia
+        fila = self._crear_seccion_config("💰 Márgenes de Ganancia", fila)
+        for cfg in configs_negocio:
+            if 'margen' in cfg['clave']:
+                fila = self._crear_fila_config(cfg, fila)
+
+        # Sección: Tiempos
+        fila = self._crear_seccion_config("⏱️ Tiempos de Entrega", fila)
+        for cfg in configs_negocio:
+            if 'horas' in cfg['clave'] or 'recargo' in cfg['clave']:
+                fila = self._crear_fila_config(cfg, fila)
+
+        # Sección: Inventario
+        fila = self._crear_seccion_config("📦 Alertas de Inventario", fila)
+        for cfg in configs_inventario:
+            fila = self._crear_fila_config(cfg, fila)
+
+        # Sección: Técnico
+        fila = self._crear_seccion_config("🔧 Parámetros Técnicos", fila)
+        for cfg in configs_tecnico:
+            fila = self._crear_fila_config(cfg, fila)
+
+        # Botón guardar
+        btn_frame = ctk.CTkFrame(self.scroll_sistema, fg_color="transparent")
+        btn_frame.grid(row=fila, column=0, columnspan=3, pady=20)
+        
+        ctk.CTkButton(
+            btn_frame,
+            text="💾 Guardar Cambios",
+            command=self._guardar_config_sistema,
+            fg_color=COLOR_SUCCESS,
+            height=40,
+            width=200
+        ).pack()
+
+    def _crear_seccion_config(self, titulo, fila):
+        """Crea un encabezado de sección"""
+        ctk.CTkLabel(
+            self.scroll_sistema,
+            text=titulo,
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLOR_PRIMARY
+        ).grid(row=fila, column=0, columnspan=3, pady=(20, 10), sticky="w")
+        return fila + 1
+
+    def _crear_fila_config(self, cfg, fila):
+        """Crea una fila para editar una configuración"""
+        fg_color = "gray25" if fila % 2 == 0 else "gray20"
+        
+        frame_fila = ctk.CTkFrame(self.scroll_sistema, fg_color=fg_color, corner_radius=8)
+        frame_fila.grid(row=fila, column=0, columnspan=3, sticky="ew", pady=2, padx=5)
+        frame_fila.grid_columnconfigure(1, weight=1)
+
+        # Descripción
+        ctk.CTkLabel(
+            frame_fila,
+            text=cfg.get('descripcion', cfg['clave']),
+            font=ctk.CTkFont(size=12),
+            wraplength=300,
+            justify="left"
+        ).grid(row=0, column=0, padx=15, pady=12, sticky="w")
+
+        # Entry para el valor
+        entry = ctk.CTkEntry(frame_fila, width=120, justify="center")
+        entry.insert(0, cfg['valor'])
+        entry.grid(row=0, column=1, padx=10, pady=12, sticky="e")
+        
+        self.entries_config[cfg['clave']] = entry
+
+        # Tipo de dato
+        tipo_label = cfg['tipo_dato'].upper()
+        ctk.CTkLabel(
+            frame_fila,
+            text=tipo_label,
+            font=ctk.CTkFont(size=10),
+            text_color="gray60"
+        ).grid(row=0, column=2, padx=10, pady=12)
+
+        return fila + 1
+
+    def _guardar_config_sistema(self):
+        """Guarda todas las configuraciones del sistema"""
+        try:
+            for clave, entry in self.entries_config.items():
+                valor = entry.get().strip()
+                if valor:
+                    consultas.actualizar_configuracion(clave, valor)
+            
+            messagebox.showinfo("Éxito", "✅ Configuraciones guardadas correctamente")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
+
+
+    # ========== CONFIGURACIÓN DE PRODUCCIÓN ==========
+    def _configurar_tab_produccion(self):
+        """Configura la pestaña de configuración de producción"""
+        self.tab_produccion.grid_rowconfigure(1, weight=1)
+        self.tab_produccion.grid_columnconfigure(0, weight=1)
+
+        # Frame de descripción
+        frame_desc = ctk.CTkFrame(self.tab_produccion, fg_color=("gray85", "gray20"))
+        frame_desc.grid(row=0, column=0, sticky="ew", pady=(0, 15), padx=10)
+        
+        ctk.CTkLabel(
+            frame_desc,
+            text="🏭 Configuración de horarios, días laborales y capacidad de producción",
+            font=ctk.CTkFont(size=14),
+            text_color=COLOR_PRIMARY
+        ).pack(pady=10)
+
+        # Frame scrollable
+        self.scroll_produccion = ctk.CTkScrollableFrame(self.tab_produccion)
+        self.scroll_produccion.grid(row=1, column=0, sticky="nsew", padx=10)
+        self.scroll_produccion.grid_columnconfigure(1, weight=1)
+
+        self._cargar_config_produccion()
+
+    def _cargar_config_produccion(self):
+        """Carga las configuraciones de producción"""
+        for widget in self.scroll_produccion.winfo_children():
+            widget.destroy()
+
+        self.entries_produccion = {}
+        self.checks_dias = {}
+
+        # === SECCIÓN: HORARIOS ===
+        ctk.CTkLabel(
+            self.scroll_produccion,
+            text="⏰ Horario de Trabajo",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=COLOR_PRIMARY
+        ).grid(row=0, column=0, columnspan=3, pady=(10, 15), sticky="w")
+
+        # Hora de apertura
+        frame_horario = ctk.CTkFrame(self.scroll_produccion, fg_color="gray25", corner_radius=10)
+        frame_horario.grid(row=1, column=0, columnspan=3, sticky="ew", pady=5, padx=5)
+        frame_horario.grid_columnconfigure((1, 3), weight=1)
+
+        ctk.CTkLabel(frame_horario, text="🌅 Hora Apertura:", font=ctk.CTkFont(size=13)).grid(row=0, column=0, padx=15, pady=15, sticky="w")
+        
+        hora_apertura = consultas.obtener_configuracion('hora_apertura', 8)
+        self.spin_apertura = ctk.CTkEntry(frame_horario, width=80, justify="center")
+        self.spin_apertura.insert(0, str(hora_apertura))
+        self.spin_apertura.grid(row=0, column=1, padx=10, pady=15)
+        ctk.CTkLabel(frame_horario, text="hrs", text_color="gray60").grid(row=0, column=2, sticky="w")
+
+        ctk.CTkLabel(frame_horario, text="🌙 Hora Cierre:", font=ctk.CTkFont(size=13)).grid(row=0, column=3, padx=15, pady=15, sticky="e")
+        
+        hora_cierre = consultas.obtener_configuracion('hora_cierre', 18)
+        self.spin_cierre = ctk.CTkEntry(frame_horario, width=80, justify="center")
+        self.spin_cierre.insert(0, str(hora_cierre))
+        self.spin_cierre.grid(row=0, column=4, padx=10, pady=15)
+        ctk.CTkLabel(frame_horario, text="hrs", text_color="gray60").grid(row=0, column=5, padx=(0, 15), sticky="w")
+
+        # === SECCIÓN: DÍAS LABORALES ===
+        ctk.CTkLabel(
+            self.scroll_produccion,
+            text="📅 Días Laborales",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=COLOR_PRIMARY
+        ).grid(row=2, column=0, columnspan=3, pady=(25, 15), sticky="w")
+
+        frame_dias = ctk.CTkFrame(self.scroll_produccion, fg_color="gray25", corner_radius=10)
+        frame_dias.grid(row=3, column=0, columnspan=3, sticky="ew", pady=5, padx=5)
+
+        dias_nombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        dias_config_str = consultas.obtener_configuracion('dias_laborales', '1,2,3,4,5,6')
+        dias_activos = [int(d.strip()) for d in dias_config_str.split(',') if d.strip()]
+
+        for i, dia in enumerate(dias_nombres):
+            var = ctk.BooleanVar(value=(i + 1) in dias_activos)
+            check = ctk.CTkCheckBox(
+                frame_dias,
+                text=dia,
+                variable=var,
+                font=ctk.CTkFont(size=12),
+                checkbox_width=24,
+                checkbox_height=24
+            )
+            check.grid(row=0, column=i, padx=15, pady=15)
+            self.checks_dias[i + 1] = var
+
+        # === SECCIÓN: CAPACIDAD ===
+        ctk.CTkLabel(
+            self.scroll_produccion,
+            text="📊 Capacidad de Producción",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=COLOR_PRIMARY
+        ).grid(row=4, column=0, columnspan=3, pady=(25, 15), sticky="w")
+
+        frame_capacidad = ctk.CTkFrame(self.scroll_produccion, fg_color="gray25", corner_radius=10)
+        frame_capacidad.grid(row=5, column=0, columnspan=3, sticky="ew", pady=5, padx=5)
+        frame_capacidad.grid_columnconfigure((1, 3), weight=1)
+
+        # Horas laborales por día
+        ctk.CTkLabel(frame_capacidad, text="⏱️ Horas efectivas por día:", font=ctk.CTkFont(size=13)).grid(row=0, column=0, padx=15, pady=15, sticky="w")
+        
+        horas_dia = consultas.obtener_configuracion('horas_laborales_dia', 8)
+        self.entry_horas_dia = ctk.CTkEntry(frame_capacidad, width=80, justify="center")
+        self.entry_horas_dia.insert(0, str(horas_dia))
+        self.entry_horas_dia.grid(row=0, column=1, padx=10, pady=15)
+        ctk.CTkLabel(frame_capacidad, text="horas", text_color="gray60").grid(row=0, column=2, sticky="w")
+
+        # Tiempo promedio por pedido
+        ctk.CTkLabel(frame_capacidad, text="📋 Tiempo promedio/pedido:", font=ctk.CTkFont(size=13)).grid(row=1, column=0, padx=15, pady=15, sticky="w")
+        
+        tiempo_pedido = consultas.obtener_configuracion('tiempo_promedio_pedido', 4.0)
+        self.entry_tiempo_pedido = ctk.CTkEntry(frame_capacidad, width=80, justify="center")
+        self.entry_tiempo_pedido.insert(0, str(tiempo_pedido))
+        self.entry_tiempo_pedido.grid(row=1, column=1, padx=10, pady=15)
+        ctk.CTkLabel(frame_capacidad, text="horas", text_color="gray60").grid(row=1, column=2, sticky="w")
+
+        # Recargo urgente
+        ctk.CTkLabel(frame_capacidad, text="🚨 Recargo por urgencia:", font=ctk.CTkFont(size=13)).grid(row=2, column=0, padx=15, pady=15, sticky="w")
+        
+        recargo = consultas.obtener_configuracion('recargo_urgente', 30)
+        self.entry_recargo = ctk.CTkEntry(frame_capacidad, width=80, justify="center")
+        self.entry_recargo.insert(0, str(recargo))
+        self.entry_recargo.grid(row=2, column=1, padx=10, pady=15)
+        ctk.CTkLabel(frame_capacidad, text="%", text_color="gray60").grid(row=2, column=2, sticky="w")
+
+        # === RESUMEN DE COLA ===
+        self._mostrar_resumen_cola()
+
+        # Botón guardar
+        btn_frame = ctk.CTkFrame(self.scroll_produccion, fg_color="transparent")
+        btn_frame.grid(row=7, column=0, columnspan=3, pady=25)
+        
+        ctk.CTkButton(
+            btn_frame,
+            text="💾 Guardar Configuración",
+            command=self._guardar_config_produccion,
+            fg_color=COLOR_SUCCESS,
+            height=45,
+            width=220,
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(side="left", padx=10)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="🔄 Actualizar Vista",
+            command=self._cargar_config_produccion,
+            height=45,
+            width=150
+        ).pack(side="left", padx=10)
+
+    def _mostrar_resumen_cola(self):
+        """Muestra el estado actual de la cola de producción"""
+        try:
+            from app.logic.cola_produccion import obtener_info_cola_produccion, estimar_capacidad_disponible
+            
+            info_cola = obtener_info_cola_produccion()
+            capacidad = estimar_capacidad_disponible(7)
+
+            frame_resumen = ctk.CTkFrame(self.scroll_produccion, fg_color=("gray80", "gray20"), corner_radius=10)
+            frame_resumen.grid(row=6, column=0, columnspan=3, sticky="ew", pady=20, padx=5)
+
+            ctk.CTkLabel(
+                frame_resumen,
+                text="📊 Estado Actual de Producción",
+                font=ctk.CTkFont(size=14, weight="bold")
+            ).grid(row=0, column=0, columnspan=4, pady=(15, 10))
+
+            # Métricas
+            metricas = [
+                (f"📋 Pedidos en cola: {info_cola['pedidos_en_cola']}", 0),
+                (f"⏰ Horas pendientes: {info_cola['horas_pendientes']:.1f}h", 1),
+                (f"📅 Días ocupados: {info_cola['dias_ocupados']}", 2),
+                (f"{info_cola['estado']}", 3),
+            ]
+
+            for texto, col in metricas:
+                ctk.CTkLabel(
+                    frame_resumen,
+                    text=texto,
+                    font=ctk.CTkFont(size=12)
+                ).grid(row=1, column=col, padx=20, pady=(5, 15))
+
+        except Exception:
+            pass
+
+    def _guardar_config_produccion(self):
+        """Guarda las configuraciones de producción"""
+        try:
+            # Guardar horarios
+            hora_apertura = int(self.spin_apertura.get())
+            hora_cierre = int(self.spin_cierre.get())
+            
+            if hora_apertura >= hora_cierre:
+                messagebox.showerror("Error", "La hora de apertura debe ser menor que la de cierre")
+                return
+            
+            consultas.actualizar_configuracion('hora_apertura', hora_apertura)
+            consultas.actualizar_configuracion('hora_cierre', hora_cierre)
+
+            # Guardar días laborales
+            dias_activos = [str(dia) for dia, var in self.checks_dias.items() if var.get()]
+            if not dias_activos:
+                messagebox.showerror("Error", "Debe seleccionar al menos un día laboral")
+                return
+            
+            dias_str = ','.join(dias_activos)
+            consultas.actualizar_configuracion('dias_laborales', dias_str)
+
+            # Guardar capacidad
+            horas_dia = int(self.entry_horas_dia.get())
+            tiempo_pedido = float(self.entry_tiempo_pedido.get())
+            recargo = int(self.entry_recargo.get())
+
+            consultas.actualizar_configuracion('horas_laborales_dia', horas_dia)
+            consultas.actualizar_configuracion('tiempo_promedio_pedido', tiempo_pedido)
+            consultas.actualizar_configuracion('recargo_urgente', recargo)
+
+            messagebox.showinfo("Éxito", "✅ Configuración de producción guardada correctamente")
+            self._cargar_config_produccion()  # Refrescar vista
+
+        except ValueError:
+            messagebox.showerror("Error", "Verifique que los valores numéricos sean correctos")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar: {str(e)}")
 
 
     # ========== UNIDADES DE MEDIDA ==========

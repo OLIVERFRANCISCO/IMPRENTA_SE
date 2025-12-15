@@ -255,71 +255,262 @@ def validar_restricciones_cantidad(nombre_servicio, cantidad, id_servicio=None):
     return True, "Cantidad válida", cantidad
 
 
-def validar_optimizacion_impresion(ancho, nombre_servicio, ancho_maximo_maquina=None, id_maquina=None):
+def validar_optimizacion_impresion(ancho, alto=0, nombre_servicio=None, ancho_maximo_maquina=None, id_maquina=None, id_servicio=None):
     """
-    Valida y sugiere optimización para impresión de gigantografías.
+    Valida y sugiere optimización para trabajos de impresión de gran formato.
     
-    Consulta la capacidad de la máquina desde la BD si se proporciona id_maquina,
-    o usa el valor por defecto configurado.
+    SISTEMA EXPERTO - REGLA DE OPTIMIZACIÓN DIMENSIONAL:
+    Consulta la Base de Conocimientos (BD) para obtener las capacidades reales
+    de las máquinas y generar sugerencias inteligentes.
+    
+    Esta función es GENÉRICA y aplica a cualquier servicio dimensional,
+    no solo gigantografías.
 
-    Regla de Negocio:
-    - Si el ancho supera el ancho máximo de la máquina,
-      sugerir dividir en paños o rotar el diseño
+    Reglas de Negocio Implementadas:
+    - R-OPT-01: Si ancho > ancho_max_maquina → Sugerir división o rotación
+    - R-OPT-02: Si alto > largo_max_maquina (cuando no es rollo) → Alertar límite
+    - R-OPT-03: Considerar márgenes técnicos (5cm típico)
+    - R-OPT-04: Sugerir rotación solo si es beneficioso (ancho < alto y alto <= ancho_max)
 
     Args:
         ancho (float): Ancho del pedido en metros
-        nombre_servicio (str): Nombre del servicio
-        ancho_maximo_maquina (float): Ancho máximo de la máquina (opcional)
-        id_maquina (int): ID de la máquina para consultar su capacidad (opcional)
+        alto (float): Alto del pedido en metros (opcional)
+        nombre_servicio (str): Nombre del servicio (opcional, para logging)
+        ancho_maximo_maquina (float): Ancho máximo override (opcional)
+        id_maquina (int): ID de la máquina para consultar capacidad (opcional)
+        id_servicio (int): ID del servicio para buscar máquinas compatibles (opcional)
 
     Returns:
-        tuple: (requiere_optimizacion: bool, mensaje_sugerencia: str)
+        dict: {
+            'requiere_optimizacion': bool,
+            'es_factible': bool,
+            'mensaje': str,
+            'sugerencias': list,
+            'capacidad_maquina': dict,  # Info de la máquina consultada
+            'puede_rotar': bool,
+            'division_sugerida': int  # Número de paños si aplica
+        }
     """
-    nombre_servicio_lower = nombre_servicio.lower()
-
-    # Solo aplica para gigantografías
-    if "gigantografia" not in nombre_servicio_lower and "giganto" not in nombre_servicio_lower:
-        return False, ""
+    resultado = {
+        'requiere_optimizacion': False,
+        'es_factible': True,
+        'mensaje': '',
+        'sugerencias': [],
+        'capacidad_maquina': None,
+        'puede_rotar': False,
+        'division_sugerida': 0
+    }
     
-    # Obtener ancho máximo de la BD si tenemos id_maquina
-    if id_maquina and ancho_maximo_maquina is None:
-        from app.database import consultas
-        try:
-            maquinas = consultas.obtener_maquinas()
-            for maq in maquinas:
-                if maq['id_maquina'] == id_maquina:
-                    # Buscar capacidad de la máquina
-                    from app.database.conexion import get_session
-                    from app.database.models import CapacidadMaquina
-                    session = get_session()
-                    try:
-                        capacidad = session.query(CapacidadMaquina).filter(
-                            CapacidadMaquina.id_maquina == id_maquina
-                        ).first()
-                        if capacidad and capacidad.ancho_util_max > 0:
-                            ancho_maximo_maquina = capacidad.ancho_util_max
-                    finally:
-                        session.close()
-                    break
-        except:
-            pass
+    # Margen técnico para impresión (5cm = 0.05m por cada lado)
+    MARGEN_TECNICO = 0.05
+    ancho_con_margen = ancho + MARGEN_TECNICO
+    alto_con_margen = alto + MARGEN_TECNICO if alto > 0 else 0
     
-    # Valor por defecto si no se pudo obtener
-    if ancho_maximo_maquina is None:
-        ancho_maximo_maquina = 2.5  # Valor típico para gran formato
+    # --- PASO 1: Obtener capacidad de máquina desde la BD ---
+    capacidad = None
     
-    if ancho > ancho_maximo_maquina:
-        mensaje = (
-            f"⚠️ SUGERENCIA DE OPTIMIZACIÓN:\n\n"
-            f"El ancho solicitado ({ancho}m) supera el ancho máximo de la máquina ({ancho_maximo_maquina}m).\n\n"
-            f"Opciones recomendadas:\n"
-            f"• Dividir el diseño en 2 paños de {ancho_maximo_maquina}m cada uno\n"
-            f"• Imprimir rotado para optimizar el uso del material\n"
-            f"• Consultar con el cliente sobre ajustes en las dimensiones"
+    # Prioridad 1: ID de máquina específica
+    if id_maquina:
+        capacidad = _obtener_capacidad_maquina(id_maquina)
+    
+    # Prioridad 2: Buscar máquina por servicio
+    if not capacidad and id_servicio:
+        capacidad = _obtener_mejor_capacidad_por_servicio(id_servicio)
+    
+    # Prioridad 3: Valor proporcionado o default
+    if not capacidad:
+        capacidad = {
+            'id_maquina': None,
+            'nombre': 'Máquina genérica',
+            'ancho_util_max': ancho_maximo_maquina or 2.5,
+            'largo_util_max': 0,  # 0 = rollo infinito
+            'velocidad_promedio': 0
+        }
+    
+    resultado['capacidad_maquina'] = capacidad
+    ancho_max = capacidad['ancho_util_max']
+    largo_max = capacidad['largo_util_max']
+    
+    # --- PASO 2: Evaluar si el trabajo cabe ---
+    
+    # Caso 1: El trabajo cabe perfectamente
+    if ancho_con_margen <= ancho_max:
+        # Verificar largo si la máquina tiene límite (no es rollo continuo)
+        if largo_max > 0 and alto_con_margen > largo_max:
+            resultado['requiere_optimizacion'] = True
+            resultado['es_factible'] = False
+            resultado['mensaje'] = (
+                f"⚠️ RESTRICCIÓN DE LARGO:\n"
+                f"El alto solicitado ({alto}m + margen) excede el largo máximo "
+                f"de la máquina '{capacidad['nombre']}' ({largo_max}m).\n"
+                f"Esta máquina no usa material en rollo continuo."
+            )
+            resultado['sugerencias'].append(
+                f"Reducir el alto a máximo {largo_max - MARGEN_TECNICO:.2f}m"
+            )
+        else:
+            # Todo OK, no requiere optimización
+            resultado['mensaje'] = "✓ Las dimensiones son compatibles con la máquina."
+        
+        return resultado
+    
+    # Caso 2: El ancho excede la capacidad
+    resultado['requiere_optimizacion'] = True
+    
+    # --- PASO 3: Evaluar si se puede rotar ---
+    # Rotar es viable si: alto <= ancho_max y ancho <= largo_max (o largo es infinito)
+    puede_rotar = False
+    if alto > 0 and alto_con_margen <= ancho_max:
+        if largo_max == 0 or ancho_con_margen <= largo_max:
+            puede_rotar = True
+            resultado['puede_rotar'] = True
+            resultado['sugerencias'].append(
+                f"🔄 ROTAR EL DISEÑO: Imprimir a {alto}m de ancho × {ancho}m de largo"
+            )
+    
+    # --- PASO 4: Calcular división en paños ---
+    if ancho > 0:
+        # Número de paños necesarios (considerando solapamiento de 2cm para unión)
+        SOLAPAMIENTO = 0.02
+        ancho_util_paño = ancho_max - SOLAPAMIENTO
+        num_paños = int((ancho_con_margen / ancho_util_paño) + 0.99)  # Redondear arriba
+        resultado['division_sugerida'] = num_paños
+        
+        if num_paños <= 4:  # Máximo razonable de paños
+            resultado['sugerencias'].append(
+                f"✂️ DIVIDIR EN {num_paños} PAÑOS: "
+                f"Cada paño de ~{ancho_util_paño:.2f}m con {SOLAPAMIENTO*100:.0f}cm de traslape"
+            )
+        else:
+            resultado['sugerencias'].append(
+                f"⚠️ Se necesitarían {num_paños} paños, considerar otro método de producción"
+            )
+    
+    # --- PASO 5: Construir mensaje final ---
+    if puede_rotar:
+        resultado['es_factible'] = True
+        resultado['mensaje'] = (
+            f"⚠️ OPTIMIZACIÓN RECOMENDADA:\n\n"
+            f"El ancho solicitado ({ancho}m) supera la capacidad de la máquina "
+            f"'{capacidad['nombre']}' ({ancho_max}m).\n\n"
+            f"Sin embargo, el trabajo PUEDE realizarse rotando el diseño."
         )
-        return True, mensaje
+    elif resultado['division_sugerida'] <= 4:
+        resultado['es_factible'] = True
+        resultado['mensaje'] = (
+            f"⚠️ OPTIMIZACIÓN REQUERIDA:\n\n"
+            f"El ancho solicitado ({ancho}m) supera el máximo de la máquina "
+            f"'{capacidad['nombre']}' ({ancho_max}m).\n\n"
+            f"Se recomienda dividir el diseño en {resultado['division_sugerida']} paños."
+        )
+    else:
+        resultado['es_factible'] = False
+        resultado['mensaje'] = (
+            f"❌ TRABAJO NO FACTIBLE:\n\n"
+            f"El ancho solicitado ({ancho}m) excede significativamente la capacidad "
+            f"de '{capacidad['nombre']}' ({ancho_max}m).\n\n"
+            f"Consulte con el cliente para ajustar las dimensiones."
+        )
+    
+    # Agregar sugerencia de consultar cliente
+    resultado['sugerencias'].append(
+        "📞 Consultar con el cliente sobre ajustes en las dimensiones"
+    )
+    
+    return resultado
 
-    return False, ""
+
+def _obtener_capacidad_maquina(id_maquina):
+    """
+    Helper: Obtiene la capacidad de una máquina específica desde la BD.
+    
+    Args:
+        id_maquina (int): ID de la máquina
+    
+    Returns:
+        dict or None: Datos de capacidad
+    """
+    try:
+        from app.database.conexion import get_session
+        from app.database.models import Maquina, CapacidadMaquina
+        
+        session = get_session()
+        try:
+            capacidad = session.query(CapacidadMaquina).filter(
+                CapacidadMaquina.id_maquina == id_maquina
+            ).first()
+            
+            if capacidad:
+                maquina = session.query(Maquina).filter(
+                    Maquina.id_maquina == id_maquina
+                ).first()
+                
+                return {
+                    'id_maquina': id_maquina,
+                    'nombre': maquina.nombre if maquina else f'Máquina #{id_maquina}',
+                    'ancho_util_max': capacidad.ancho_util_max or 0,
+                    'largo_util_max': capacidad.largo_util_max or 0,
+                    'velocidad_promedio': capacidad.velocidad_promedio or 0
+                }
+        finally:
+            session.close()
+    except Exception:
+        pass
+    
+    return None
+
+
+def _obtener_mejor_capacidad_por_servicio(id_servicio):
+    """
+    Helper: Obtiene la capacidad de la mejor máquina para un servicio.
+    
+    Busca la máquina recomendada o la de mayor capacidad entre las
+    asociadas al servicio.
+    
+    Args:
+        id_servicio (int): ID del servicio
+    
+    Returns:
+        dict or None: Datos de capacidad de la mejor máquina
+    """
+    try:
+        from app.database.conexion import get_session
+        from sqlalchemy import text
+        
+        session = get_session()
+        try:
+            query = """
+                SELECT 
+                    m.id_maquina,
+                    m.nombre,
+                    cm.ancho_util_max,
+                    cm.largo_util_max,
+                    cm.velocidad_promedio,
+                    ms.es_recomendada
+                FROM maquinas m
+                JOIN maquinas_servicios ms ON m.id_maquina = ms.id_maquina
+                LEFT JOIN capacidad_maquinas cm ON m.id_maquina = cm.id_maquina
+                WHERE ms.id_servicio = :id_servicio
+                ORDER BY ms.es_recomendada DESC, cm.ancho_util_max DESC
+                LIMIT 1
+            """
+            
+            result = session.execute(text(query), {'id_servicio': id_servicio}).fetchone()
+            
+            if result:
+                return {
+                    'id_maquina': result[0],
+                    'nombre': result[1],
+                    'ancho_util_max': result[2] or 0,
+                    'largo_util_max': result[3] or 0,
+                    'velocidad_promedio': result[4] or 0
+                }
+        finally:
+            session.close()
+    except Exception:
+        pass
+    
+    return None
 
 
 def convertir_millares_a_unidades(millares):

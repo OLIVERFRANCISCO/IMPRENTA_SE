@@ -216,7 +216,9 @@ def obtener_rollos_compatibles(ancho_trabajo):
     """
     Obtiene rollos de material que pueden contener el ancho del trabajo.
     
-    INFERENCIA: ancho_fijo_rollo >= ancho_trabajo
+    INFERENCIA: ancho_disponible >= ancho_trabajo
+    
+    Usa la tabla `inventario_dimensional_materiales` del modelo ORM normalizado.
     
     Args:
         ancho_trabajo: Ancho requerido en metros
@@ -228,17 +230,21 @@ def obtener_rollos_compatibles(ancho_trabajo):
     try:
         from sqlalchemy import text
         
+        # Consulta corregida usando las tablas ORM reales:
+        # - inventario_dimensional_materiales (contiene ancho_disponible, largo_disponible)
+        # - materiales (catálogo de materiales)
         query = """
             SELECT 
                 mat.id_material,
                 mat.nombre_material,
-                ari.ancho_fijo_rollo,
-                inv.cantidad_stock,
-                (ari.ancho_fijo_rollo - :ancho) as desperdicio
+                idm.ancho_disponible,
+                idm.largo_disponible,
+                (idm.ancho_disponible - :ancho) as desperdicio,
+                idm.es_continuo
             FROM materiales mat
-            JOIN atributos_rollos_impresion ari ON mat.id_material = ari.id_material
-            LEFT JOIN inventario_materiales inv ON mat.id_material = inv.id_material
-            WHERE ari.ancho_fijo_rollo >= :ancho
+            JOIN inventario_dimensional_materiales idm ON mat.id_material = idm.id_material
+            WHERE idm.ancho_disponible >= :ancho
+              AND idm.largo_disponible > 0
             ORDER BY desperdicio ASC
         """
         
@@ -246,13 +252,15 @@ def obtener_rollos_compatibles(ancho_trabajo):
         
         rollos = []
         for row in result:
+            ancho_rollo = row[2] or 0
             rollos.append({
                 'id_material': row[0],
                 'nombre': row[1],
-                'ancho_rollo': row[2],
-                'stock': row[3] or 0,
+                'ancho_rollo': ancho_rollo,
+                'largo_disponible': row[3] or 0,
                 'desperdicio_metros': row[4],
-                'eficiencia': round((ancho_trabajo / row[2]) * 100, 1) if row[2] > 0 else 0
+                'es_continuo': bool(row[5]),
+                'eficiencia': round((ancho_trabajo / ancho_rollo) * 100, 1) if ancho_rollo > 0 else 0
             })
         
         return rollos

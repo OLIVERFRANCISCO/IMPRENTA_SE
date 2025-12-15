@@ -618,10 +618,17 @@ class PanelPedidos(ctk.CTkFrame):
             if ancho <= 0:
                 return
 
-            # Validar optimización
-            requiere_opt, mensaje = calculos.validar_optimizacion_impresion(ancho, servicio, ANCHO_MAXIMO_MAQUINA)
-            if requiere_opt:
-                messagebox.showwarning(f"{IconoSVG.ALERTA} Optimización Recomendada", mensaje)
+            # Validar optimización usando el Sistema Experto
+            alto = float(self.entry_alto.get() or 0)
+            id_servicio = self.servicio_actual.get('id_servicio') if self.servicio_actual else None
+            resultado_opt = calculos.validar_optimizacion_impresion(
+                ancho=ancho,
+                alto=alto,
+                nombre_servicio=servicio,
+                id_servicio=id_servicio
+            )
+            if resultado_opt.get('requiere_optimizacion') and resultado_opt.get('mensaje'):
+                messagebox.showwarning(f"{IconoSVG.ALERTA} Optimización Recomendada", resultado_opt['mensaje'])
 
             self._al_cambiar_dimensiones()
             self._seleccionar_rollo_automaticamente()

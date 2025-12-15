@@ -704,3 +704,56 @@ class RestriccionCantidad(Base):
             'cantidad_maxima': self.cantidad_maxima,
             'mensaje_error': self.mensaje_error
         }
+
+
+# ==========================================
+# 7. CONFIGURACIÓN DEL SISTEMA (DINÁMICA)
+# ==========================================
+
+class ConfiguracionSistema(Base):
+    """
+    Tabla para almacenar configuraciones del sistema de forma dinámica.
+    Permite modificar parámetros sin tocar el código.
+    
+    Categorías:
+    - 'produccion': Horarios, días laborales, capacidad
+    - 'negocio': Márgenes de ganancia, tiempos de entrega
+    - 'inventario': Alertas de stock, porcentajes mínimos
+    - 'interfaz': Colores, tamaños de ventana
+    """
+    __tablename__ = 'configuracion_sistema'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clave = Column(String, unique=True, nullable=False)  # Identificador único
+    valor = Column(String, nullable=False)  # Valor almacenado como string
+    tipo_dato = Column(String, default='str')  # 'str', 'int', 'float', 'bool', 'json'
+    categoria = Column(String, default='general')  # Para agrupar en la UI
+    descripcion = Column(String, nullable=True)  # Descripción para el usuario
+    fecha_modificacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    def __repr__(self):
+        return f"<ConfiguracionSistema(clave='{self.clave}', valor='{self.valor}')>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'clave': self.clave,
+            'valor': self.valor,
+            'tipo_dato': self.tipo_dato,
+            'categoria': self.categoria,
+            'descripcion': self.descripcion,
+            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None
+        }
+    
+    def get_valor_tipado(self):
+        """Retorna el valor convertido al tipo de dato correcto"""
+        if self.tipo_dato == 'int':
+            return int(self.valor)
+        elif self.tipo_dato == 'float':
+            return float(self.valor)
+        elif self.tipo_dato == 'bool':
+            return self.valor.lower() in ('true', '1', 'si', 'yes')
+        elif self.tipo_dato == 'json':
+            import json
+            return json.loads(self.valor)
+        return self.valor
